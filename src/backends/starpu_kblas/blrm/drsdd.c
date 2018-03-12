@@ -12,9 +12,9 @@
 
 #include "common.h"
 #include "starsh.h"
-#include "starsh-starpu.h"
+#include "starsh-starpu-kblas.h"
 
-int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
+int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly)
 //! Approximate each tile by randomized SVD.
 /*!
@@ -27,7 +27,7 @@ int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
  * @ingroup blrm
  * */
 {
-    printf("IN STARPU (NO KBLAS)\n");
+    printf("IN KBLAS ROUTINE\n");
     STARSH_blrf *F = format;
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;
@@ -52,21 +52,24 @@ int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
     const int oversample = starsh_params.oversample;
     struct starpu_codelet codelet =
     {
-        .cpu_funcs = {starsh_dense_dlrrsdd_starpu},
+        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
         .nbuffers = 6,
         .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_SCRATCH,
             STARPU_SCRATCH}
     };
     struct starpu_codelet codelet2 =
     {
-        .cpu_funcs = {starsh_dense_kernel_starpu},
-        .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W}
+        .cpu_funcs = {starsh_dense_kernel_starpu_kblas_cpu},
+        .nbuffers = 1,
+        .modes = {STARPU_W}
     };
-    STARSH_int bi_value[nblocks_far];
-    starpu_data_handle_t bi_handle[nblocks_far], rank_handle[nblocks_far];
-    starpu_data_handle_t U_handle[nblocks_far], V_handle[nblocks_far];
-    starpu_data_handle_t work_handle[nblocks_far], iwork_handle[nblocks_far];
+    starpu_data_handle_t bi_handle[nblocks_far];
+    starpu_data_handle_t rank_handle[nblocks_far];
+    starpu_data_handle_t D_handle[nblocks_far];
+    starpu_data_handle_t U_handle[nblocks_far];
+    starpu_data_handle_t V_handle[nblocks_far];
+    starpu_data_handle_t work_handle[nblocks_far];
+    starpu_data_handle_t iwork_handle[nblocks_far];
     // Init buffers to store low-rank factors of far-field blocks if needed
     if(nblocks_far > 0)
     {
@@ -103,7 +106,7 @@ int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
             int lwork = ncols, lwork_sdd = (4*mn2+7)*mn2;
             if(lwork_sdd > lwork)
                 lwork = lwork_sdd;
-            lwork += nrows*ncols+mn2*(2*ncols+nrows+mn2+1);
+            lwork += mn2*(2*ncols+nrows+mn2+1);
             int liwork = 8*mn2;
             int shape_U[] = {nrows, maxrank};
             int shape_V[] = {ncols, maxrank};
@@ -112,11 +115,10 @@ int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
             offset_V += ncols*maxrank;
             array_from_buffer(far_U+bi, 2, shape_U, 'd', 'F', U);
             array_from_buffer(far_V+bi, 2, shape_V, 'd', 'F', V);
-            bi_value[bi] = bi;
-            starpu_variable_data_register(bi_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(bi_value+bi), sizeof(*bi_value));
             starpu_variable_data_register(rank_handle+bi, STARPU_MAIN_RAM,
                     (uintptr_t)(far_rank+bi), sizeof(*far_rank));
+            starpu_matrix_data_register(D_handle+bi, -1, 0, nrows, nrows,
+                    ncols, sizeof(double));
             starpu_vector_data_register(U_handle+bi, STARPU_MAIN_RAM,
                     (uintptr_t)(far_U[bi]->data), nrows*maxrank, sizeof(*U));
             starpu_vector_data_register(V_handle+bi, STARPU_MAIN_RAM,
@@ -134,17 +136,30 @@ int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
     // Simple cycle over all far-field admissible blocks
     for(bi = 0; bi < nblocks_far; bi++)
     {
-        starpu_task_insert(&codelet, STARPU_VALUE, &F, sizeof(F),
+        // Get indexes of corresponding block row and block column
+        STARSH_int i = block_far[2*bi];
+        STARSH_int j = block_far[2*bi+1];
+        // Generate matrix
+        starpu_task_insert(&codelet2,
+                STARPU_VALUE, &F, sizeof(F),
+                STARPU_VALUE, &i, sizeof(i),
+                STARPU_VALUE, &j, sizeof(j),
+                STARPU_W, D_handle[bi],
+                0);
+        // Approximate
+        starpu_task_insert(&codelet,
                 STARPU_VALUE, &maxrank, sizeof(maxrank),
                 STARPU_VALUE, &oversample, sizeof(oversample),
                 STARPU_VALUE, &tol, sizeof(tol),
-                STARPU_R, bi_handle[bi], STARPU_W, rank_handle[bi],
-                STARPU_W, U_handle[bi], STARPU_W, V_handle[bi],
+                STARPU_R, D_handle[bi],
+                STARPU_W, U_handle[bi],
+                STARPU_W, V_handle[bi],
+                STARPU_W, rank_handle[bi],
                 STARPU_SCRATCH, work_handle[bi],
                 STARPU_SCRATCH, iwork_handle[bi],
                 0);
-        starpu_data_unregister_submit(bi_handle[bi]);
         starpu_data_unregister_submit(rank_handle[bi]);
+        starpu_data_unregister_submit(D_handle[bi]);
         starpu_data_unregister_submit(U_handle[bi]);
         starpu_data_unregister_submit(V_handle[bi]);
         starpu_data_unregister_submit(work_handle[bi]);
@@ -259,8 +274,15 @@ int starsh_blrm__drsdd_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
         }
         for(bi = 0; bi < new_nblocks_near; bi++)
         {
-            starpu_task_insert(&codelet2, STARPU_VALUE, &F, sizeof(F),
-                    STARPU_R, nbi_handle[bi], STARPU_W, D_handle[bi],
+            // Get indexes of corresponding block row and block column
+            STARSH_int i = block_near[2*bi];
+            STARSH_int j = block_near[2*bi+1];
+            // Get matrix
+            starpu_task_insert(&codelet2,
+                    STARPU_VALUE, &F, sizeof(F),
+                    STARPU_VALUE, &i, sizeof(i),
+                    STARPU_VALUE, &j, sizeof(j),
+                    STARPU_W, D_handle[bi],
                     0);
             starpu_data_unregister_submit(nbi_handle[bi]);
             starpu_data_unregister_submit(D_handle[bi]);

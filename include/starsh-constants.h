@@ -30,8 +30,10 @@ enum STARSH_BACKEND
     //!< Hybrid MPI + OpenMP
     STARSH_BACKEND_STARPU = 4,
     //!< StarPU (without MPI)
-    STARSH_BACKEND_MPI_STARPU = 5
+    STARSH_BACKEND_MPI_STARPU = 5,
     //!< StarPU (with MPI)
+    STARSH_BACKEND_STARPU_KBLAS = 6,
+    //!< StarPU+KBLAS (without MPI)
 };
 
 //! Enum for low-rank engine (approximation technique)

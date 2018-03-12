@@ -11,7 +11,7 @@
  * */
 
 //! Set number of backends and default one
-#define BACKEND_NUM 6
+#define BACKEND_NUM 7
 #define BACKEND_DEFAULT STARSH_BACKEND_SEQUENTIAL
 #ifdef OPENMP
     #undef BACKEND_DEFAULT
@@ -58,6 +58,11 @@ struct
     {"MPI_STARPU", STARSH_BACKEND_MPI_STARPU},
 #else
     {"MPI_STARPU", STARSH_BACKEND_NOTSUPPORTED},
+#endif
+#ifdef STARPU
+    {"STARPU_KBLAS", STARSH_BACKEND_STARPU_KBLAS},
+#else
+    {"STARPU_KBLAS", STARSH_BACKEND_NOTSUPPORTED},
 #endif
 };
 
@@ -137,9 +142,20 @@ static STARSH_blrm_approximate *(dlr_starpu_mpi[LRENGINE_NUM]) =
     #endif
 };
 
+//! Array of approximation functions for STARPU_KBLAS backend
+static STARSH_blrm_approximate *(dlr_starpu_kblas[LRENGINE_NUM]) =
+{
+    #ifdef STARPU
+    starsh_blrm__dsdd_starpu, starsh_blrm__dsdd_starpu,
+    starsh_blrm__dqp3_starpu, starsh_blrm__drsdd_starpu_kblas,
+    starsh_blrm__drsdd_starpu_kblas
+    #endif
+};
+
 //! Array of approximation functions, depending on backend
 static STARSH_blrm_approximate *(*dlr[BACKEND_NUM]) =
 {
-    dlr_seq, dlr_omp, dlr_mpi, dlr_mpi, dlr_starpu, dlr_starpu_mpi
+    dlr_seq, dlr_omp, dlr_mpi, dlr_mpi, dlr_starpu, dlr_starpu_mpi,
+    dlr_starpu_kblas
 };
 
