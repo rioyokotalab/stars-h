@@ -13,6 +13,33 @@
 #include "common.h"
 #include "starsh.h"
 #include "starsh-starpu-kblas.h"
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <kblas.h>
+
+static void init_starpu_kblas(void *args)
+{
+    cublasHandle_t *cublas_handles;
+    kblasHandle_t *kblas_handles;
+    int nb, nsamples;
+    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles, &nb,
+            &nsamples);
+    int id = starpu_worker_get_id();
+    cublasCreate(&cublas_handles[id]);
+    kblasCreate(&kblas_handles[id]);
+    kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, 1);
+    kblasAllocateWorkspace(kblas_handles[id]);
+}
+
+static void deinit_starpu_kblas(void *args)
+{
+    cublasHandle_t *cublas_handles;
+    kblasHandle_t *kblas_handles;
+    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles);
+    int id = starpu_worker_get_id();
+    cublasDestroy(cublas_handles[id]);
+    kblasDestroy(&kblas_handles[id]);
+}
 
 int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly)
@@ -50,9 +77,35 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     size_t offset_U = 0, offset_V = 0, offset_D = 0;
     STARSH_int bi, bj = 0;
     const int oversample = starsh_params.oversample;
+    // Init CuBLAS and KBLAS handles and temp buffers for all workers (but they
+    // are used only in GPU codelets)
+    int workers = starpu_worker_get_count();
+    cublasHandle_t cublas_handles[workers];
+    kblasHandle_t kblas_handles[workers];
+    double singular_values[workers*(maxrank+oversample)];
+    //printf("MAIN: %p, %p, %p\n", cublas_handles, kblas_handles,
+    //        singular_values);
+    cublasHandle_t *cuhandles = cublas_handles;
+    kblasHandle_t *khandles = kblas_handles;
+    double *svhandles = singular_values;
+    //printf("MAIN: %p, %p, %p\n", cuhandles, khandles, svhandles);
+    void *args_buffer;
+    size_t args_buffer_size = 0;
+    // This works only for TLR with equal tiles
+    int nb = RC->size[0];
+    int nsamples = maxrank+oversample;
+    starpu_codelet_pack_args(&args_buffer, &args_buffer_size,
+            STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+            STARPU_VALUE, &khandles, sizeof(khandles),
+            STARPU_VALUE, &nb, sizeof(nb),
+            STARPU_VALUE, &nsamples, sizeof(nsamples),
+            0);
+    starpu_execute_on_each_worker(init_starpu_kblas, args_buffer, STARPU_CUDA);
+    // Init codelet structs and handles
     struct starpu_codelet codelet =
     {
-        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
+        //.cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
+        .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .nbuffers = 6,
         .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_SCRATCH,
             STARPU_SCRATCH}
@@ -86,6 +139,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
             // Get corresponding sizes and minimum of them
             size_U += RC->size[i];
             size_V += CC->size[j];
+            //far_rank[bi] = -2;
         }
         size_U *= maxrank;
         size_V *= maxrank;
@@ -115,8 +169,8 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
             offset_V += ncols*maxrank;
             array_from_buffer(far_U+bi, 2, shape_U, 'd', 'F', U);
             array_from_buffer(far_V+bi, 2, shape_V, 'd', 'F', V);
-            starpu_variable_data_register(rank_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(far_rank+bi), sizeof(*far_rank));
+            starpu_vector_data_register(rank_handle+bi, STARPU_MAIN_RAM,
+                    (uintptr_t)(far_rank+bi), 1, sizeof(*far_rank));
             starpu_matrix_data_register(D_handle+bi, -1, 0, nrows, nrows,
                     ncols, sizeof(double));
             starpu_vector_data_register(U_handle+bi, STARPU_MAIN_RAM,
@@ -151,6 +205,9 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &maxrank, sizeof(maxrank),
                 STARPU_VALUE, &oversample, sizeof(oversample),
                 STARPU_VALUE, &tol, sizeof(tol),
+                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &svhandles, sizeof(svhandles),
                 STARPU_R, D_handle[bi],
                 STARPU_W, U_handle[bi],
                 STARPU_W, V_handle[bi],
@@ -158,20 +215,28 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_SCRATCH, work_handle[bi],
                 STARPU_SCRATCH, iwork_handle[bi],
                 0);
-        starpu_data_unregister_submit(rank_handle[bi]);
-        starpu_data_unregister_submit(D_handle[bi]);
-        starpu_data_unregister_submit(U_handle[bi]);
-        starpu_data_unregister_submit(V_handle[bi]);
-        starpu_data_unregister_submit(work_handle[bi]);
-        starpu_data_unregister_submit(iwork_handle[bi]);
     }
     starpu_task_wait_for_all();
+    for(bi = 0; bi < nblocks_far; bi++)
+    {
+        starpu_data_unregister(rank_handle[bi]);
+        starpu_data_unregister(D_handle[bi]);
+        starpu_data_unregister(U_handle[bi]);
+        starpu_data_unregister(V_handle[bi]);
+        starpu_data_unregister(work_handle[bi]);
+        starpu_data_unregister(iwork_handle[bi]);
+    }
     // Get number of false far-field blocks
     STARSH_int nblocks_false_far = 0;
     STARSH_int *false_far = NULL;
     for(bi = 0; bi < nblocks_far; bi++)
+    {
+        printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
+        //far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
+    }
+    /*
     if(nblocks_false_far > 0)
     {
         // IMPORTANT: `false_far` must to be in ascending order for later code
@@ -332,6 +397,9 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         free(false_far);
     // Finish with creating instance of Block Low-Rank Matrix with given
     // buffers
+    starpu_execute_on_each_worker(deinit_starpu_kblas, args_buffer,
+            STARPU_CUDA);
+    */
     return starsh_blrm_new(matrix, F, far_rank, far_U, far_V, onfly, near_D,
             alloc_U, alloc_V, alloc_D, '1');
 }

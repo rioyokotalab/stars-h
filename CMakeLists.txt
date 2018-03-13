@@ -69,6 +69,10 @@ set(CMAKE_BUILD_TYPE Release CACHE STRING
 option(OPENMP "Use OpenMP" ON)
 option(MPI "Use MPI" ON)
 option(STARPU "Use StarPU" ON)
+# Since KBLAS does not support pkg-config, it is OFF by default, since user has
+# to provide path by means of
+# CFLAGS="-I/path/to/kblas/include -L/path/to/kblas/lib"
+option(KBLAS "Use KBLAS" OFF)
 
 # Option to force using parallel blas instead of sequential
 option(USE_PARALLEL_BLAS "Prefer parallel blas libraries" OFF)
@@ -306,6 +310,16 @@ if(BLA_VENDOR MATCHES "Intel")
     add_definitions("-DMKL")
 endif()
 
+if(STARPU AND KBLAS)
+    find_package(MAGMA)
+    if(MAGMA_FOUND)
+        include_directories(${MAGMA_INCLUDE_DIRS})
+        link_directories(${MAGMA_LIBRARY_DIRS})
+        add_definitions("-DKBLAS")
+    else()
+        set(KBLAS OFF)
+    endif()
+endif()
 
 ###############################################################################
 ##                          PRINT CONFIGURATION                              ##

@@ -17,5 +17,5 @@ set(SRC
     #"${CMAKE_CURRENT_SOURCE_DIR}/dsdd.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/kernel.c"
     #"${CMAKE_CURRENT_SOURCE_DIR}/dgemm.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/fake_init.c"
+    #"${CMAKE_CURRENT_SOURCE_DIR}/fake_init.c"
     ${SRC} PARENT_SCOPE)
