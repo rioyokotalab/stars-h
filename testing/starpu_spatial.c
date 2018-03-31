@@ -101,7 +101,6 @@ int main(int argc, char **argv)
     starsh_blrm_info(M);
     printf("TIME TO APPROXIMATE: %e secs\n", time1);
     // Measure approximation error
-    /*
     time1 = omp_get_wtime();
     double rel_err = starsh_blrm__dfe(M);
     time1 = omp_get_wtime()-time1;
@@ -112,7 +111,6 @@ int main(int argc, char **argv)
         printf("Resulting relative error is too big\n");
         return 1;
     }
-    */
     // Measure time for 10 BLRM matvecs and for 10 BLRM TLR matvecs
     /* Not performed due to no matvec yet with STARPU
     double *x, *y;

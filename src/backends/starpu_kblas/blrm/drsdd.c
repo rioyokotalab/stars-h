@@ -35,7 +35,7 @@ static void deinit_starpu_kblas(void *args)
 {
     cublasHandle_t *cublas_handles;
     kblasHandle_t *kblas_handles;
-    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles);
+    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles, 0);
     int id = starpu_worker_get_id();
     cublasDestroy(cublas_handles[id]);
     kblasDestroy(&kblas_handles[id]);
@@ -104,8 +104,8 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     // Init codelet structs and handles
     struct starpu_codelet codelet =
     {
-        //.cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
-        .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
+        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
+        //.cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .nbuffers = 6,
         .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_SCRATCH,
             STARPU_SCRATCH}
@@ -116,7 +116,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         .nbuffers = 1,
         .modes = {STARPU_W}
     };
-    starpu_data_handle_t bi_handle[nblocks_far];
+    //starpu_data_handle_t bi_handle[nblocks_far];
     starpu_data_handle_t rank_handle[nblocks_far];
     starpu_data_handle_t D_handle[nblocks_far];
     starpu_data_handle_t U_handle[nblocks_far];
@@ -231,12 +231,11 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     STARSH_int *false_far = NULL;
     for(bi = 0; bi < nblocks_far; bi++)
     {
-        printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
+        //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
         //far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }
-    /*
     if(nblocks_false_far > 0)
     {
         // IMPORTANT: `false_far` must to be in ascending order for later code
@@ -299,9 +298,9 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     // Compute near-field blocks if needed
     if(onfly == 0 && new_nblocks_near > 0)
     {
-        STARSH_int nbi_value[new_nblocks_near];
+        //STARSH_int nbi_value[new_nblocks_near];
         starpu_data_handle_t D_handle[new_nblocks_near];
-        starpu_data_handle_t nbi_handle[new_nblocks_near];
+        //starpu_data_handle_t nbi_handle[new_nblocks_near];
         STARSH_MALLOC(near_D, new_nblocks_near);
         size_t size_D = 0;
         // Simple cycle over all near-field blocks
@@ -330,11 +329,11 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
             double *D = alloc_D+offset_D;
             array_from_buffer(near_D+bi, 2, shape, 'd', 'F', D);
             offset_D += near_D[bi]->size;
-            nbi_value[bi] = bi;
-            starpu_variable_data_register(nbi_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(nbi_value+bi), sizeof(*nbi_value));
-            starpu_vector_data_register(D_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(near_D[bi]->data), (size_t)nrows*(size_t)ncols,
+            //nbi_value[bi] = bi;
+            //starpu_variable_data_register(nbi_handle+bi, STARPU_MAIN_RAM,
+            //        (uintptr_t)(nbi_value+bi), sizeof(*nbi_value));
+            starpu_matrix_data_register(D_handle+bi, STARPU_MAIN_RAM,
+                    (uintptr_t)(near_D[bi]->data), nrows, nrows, ncols,
                     sizeof(*D));
         }
         for(bi = 0; bi < new_nblocks_near; bi++)
@@ -349,11 +348,14 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                     STARPU_VALUE, &j, sizeof(j),
                     STARPU_W, D_handle[bi],
                     0);
-            starpu_data_unregister_submit(nbi_handle[bi]);
-            starpu_data_unregister_submit(D_handle[bi]);
+            //starpu_data_unregister_submit(nbi_handle[bi]);
+            //starpu_data_unregister_submit(D_handle[bi]);
         }
         // Wait in this scope, because all handles are not visible outside
         starpu_task_wait_for_all();
+        // Unregister data
+        for(bi = 0; bi < new_nblocks_near; bi++)
+            starpu_data_unregister(D_handle[bi]);
     }
     // Change sizes of far_rank, far_U and far_V if there were false
     // far-field blocks
@@ -399,7 +401,6 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     // buffers
     starpu_execute_on_each_worker(deinit_starpu_kblas, args_buffer,
             STARPU_CUDA);
-    */
     return starsh_blrm_new(matrix, F, far_rank, far_U, far_V, onfly, near_D,
             alloc_U, alloc_V, alloc_D, '1');
 }
