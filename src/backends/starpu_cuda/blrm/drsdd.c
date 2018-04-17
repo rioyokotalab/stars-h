@@ -24,9 +24,10 @@ static void init_starpu_cuda(void *args)
     cublasHandle_t *cublas_handles;
     cusolverDnHandle_t *cusolver_handles;
     curandGenerator_t *curand_handles;
+    int **devinfo;
     int nb, nsamples;
     starpu_codelet_unpack_args(args, &cublas_handles, &cusolver_handles,
-            &curand_handles, &nb, &nsamples);
+            &curand_handles, &devinfo, &nb, &nsamples);
     int id = starpu_worker_get_id();
     cublasStatus_t status;
     printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
@@ -34,6 +35,7 @@ static void init_starpu_cuda(void *args)
     cusolverDnCreate(&cusolver_handles[id]);
     curandCreateGenerator(&curand_handles[id], CURAND_RNG_PSEUDO_MT19937);
     curandSetPseudoRandomGeneratorSeed(curand_handles[id], 0ULL);
+    cudaMalloc((void **)&devinfo[id], sizeof(int));
 }
 
 static void deinit_starpu_cuda(void *args)
@@ -41,13 +43,15 @@ static void deinit_starpu_cuda(void *args)
     cublasHandle_t *cublas_handles;
     cusolverDnHandle_t *cusolver_handles;
     curandGenerator_t *curand_handles;
+    int **devinfo;
     starpu_codelet_unpack_args(args, &cublas_handles, &cusolver_handles,
-            &curand_handles, 0);
+            &curand_handles, &devinfo, 0);
     int id = starpu_worker_get_id();
     //printf("CUBLAS deinit worker %d at %p\n", id, &cublas_handles[id]);
     cublasDestroy(cublas_handles[id]);
     cusolverDnDestroy(cusolver_handles[id]);
     curandDestroyGenerator(curand_handles[id]);
+    cudaFree(devinfo[id]);
 }
 
 int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
@@ -91,10 +95,12 @@ int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
     cublasHandle_t cublas_handles[workers];
     cusolverDnHandle_t cusolver_handles[workers];
     curandGenerator_t curand_handles[workers];
+    int *devinfo[workers];
     double singular_values[workers*(maxrank+oversample)];
     cublasHandle_t *cuhandles = cublas_handles;
     cusolverDnHandle_t *cuhandles2 = cusolver_handles;
     curandGenerator_t *cuhandles3 = curand_handles;
+    int **devinfo_ptr = devinfo;
     double *svhandles = singular_values;
     //printf("MAIN: %p, %p, %p\n", cuhandles, cuhandles2, svhandles);
     void *args_buffer;
@@ -106,6 +112,7 @@ int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
             STARPU_VALUE, &cuhandles, sizeof(cuhandles),
             STARPU_VALUE, &cuhandles2, sizeof(cuhandles2),
             STARPU_VALUE, &cuhandles3, sizeof(cuhandles3),
+            STARPU_VALUE, &devinfo_ptr, sizeof(devinfo_ptr),
             STARPU_VALUE, &nb, sizeof(nb),
             STARPU_VALUE, &nsamples, sizeof(nsamples),
             0);
@@ -171,7 +178,7 @@ int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
                 lwork = lwork_sdd;
             cusolverDnDgesvd_bufferSize(cusolver_handles[0], ncols, mn2,
                     &lwork_sdd);
-            printf("CUSOLVER SVD LWORK=%d\n", lwork_sdd);
+            //printf("CUSOLVER SVD LWORK=%d\n", lwork_sdd);
             if(lwork_sdd > lwork)
                 lwork = lwork_sdd;
             lwork += mn2*(2*ncols+nrows+2*mn2+1);
@@ -222,6 +229,7 @@ int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &cuhandles, sizeof(cuhandles),
                 STARPU_VALUE, &cuhandles2, sizeof(cuhandles2),
                 STARPU_VALUE, &cuhandles3, sizeof(cuhandles3),
+                STARPU_VALUE, &devinfo_ptr, sizeof(devinfo_ptr),
                 STARPU_VALUE, &svhandles, sizeof(svhandles),
                 STARPU_R, D_handle[bi],
                 STARPU_W, U_handle[bi],
@@ -246,8 +254,8 @@ int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
     STARSH_int *false_far = NULL;
     for(bi = 0; bi < nblocks_far; bi++)
     {
-        printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        far_rank[bi] = -1;
+        //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
+        //far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }

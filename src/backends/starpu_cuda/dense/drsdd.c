@@ -27,9 +27,10 @@ void starsh_dense_dlrrsdd_starpu_cuda_cpu(void *buffer[], void *cl_arg)
     cublasHandle_t *cublas_handles;
     cusolverDnHandle_t *cusolver_handles;
     curandGenerator_t *curand_handles;
+    int **devinfo;
     double *singular_values;
     starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &cusolver_handles, &curand_handles,
+            &cublas_handles, &cusolver_handles, &curand_handles, &devinfo,
             &singular_values);
     //printf("CODELET: %p, %p, %p\n", cublas_handles, cusolver_handles,
     //        singular_values);
@@ -55,9 +56,10 @@ void starsh_dense_dlrrsdd_starpu_cuda_gpu(void *buffer[], void *cl_arg)
     cublasHandle_t *cublas_handles;
     cusolverDnHandle_t *cusolver_handles;
     curandGenerator_t *curand_handles;
+    int **devinfo;
     double *singular_values;
     starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &cusolver_handles, &curand_handles,
+            &cublas_handles, &cusolver_handles, &curand_handles, &devinfo,
             &singular_values);
     double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
     int nrows = STARPU_MATRIX_GET_NX(buffer[0]);
@@ -75,6 +77,7 @@ void starsh_dense_dlrrsdd_starpu_cuda_gpu(void *buffer[], void *cl_arg)
     cusolverDnHandle_t cusolverhandle = cusolver_handles[id];
     cublasHandle_t cuhandle = cublas_handles[id];
     curandGenerator_t curandhandle = curand_handles[id];
+    int *mydevinfo  = devinfo[id];
     double *host_S = singular_values+id*(maxrank+oversample);
     double *device_X = work; // ncols-by-mn2-by random matrix
     double *device_Q = device_X+ncols*mn2; // nrows-by-mn2 matrix
@@ -85,68 +88,57 @@ void starsh_dense_dlrrsdd_starpu_cuda_gpu(void *buffer[], void *cl_arg)
     double *device_rwork = device_V+mn2*mn2;
     double *device_work = device_rwork+mn2;
     lwork -= (2*ncols+nrows+2*mn2+1)*mn2;
-    printf("lwork=%d\n", lwork);
+    //printf("lwork=%d\n", lwork);
     double one = 1.0;
     double zero = 0.0;
-    int devinfo = 0;
     cusolverStatus_t status;
-    cudaMemcpy(host_S, D, sizeof(*D), cudaMemcpyDeviceToHost);
-    printf("D[0]=%f\n", host_S[0]);
+    cublasStatus_t status2;
     curandGenerateNormalDouble(curandhandle, device_X, ncols*mn2, zero, one);
-    cudaMemcpy(host_S, device_X, sizeof(*device_X), cudaMemcpyDeviceToHost);
-    printf("X[0]=%f\n", host_S[0]);
-    cublasDgemm(cuhandle, CUBLAS_OP_N, CUBLAS_OP_N, nrows, mn2, ncols, &one, D,
-            nrows, device_X, ncols, &zero, device_Q, nrows);
+    status2 = cublasDgemm(cuhandle, CUBLAS_OP_N, CUBLAS_OP_N, nrows, mn2, ncols,
+            &one, D, nrows, device_X, ncols, &zero, device_Q, nrows);
+    if(status2)
+    {
+        printf("STATUS GEMM=%d\n", status2);
+    }
     cudaMemcpy(host_S, device_Q, sizeof(*device_Q), cudaMemcpyDeviceToHost);
-    printf("Q[0]=%f\n", host_S[0]);
     status = cusolverDnDgeqrf(cusolverhandle, nrows, mn2, device_Q, nrows,
-            device_tau, device_work, lwork, &devinfo);
+            device_tau, device_work, lwork, mydevinfo);
     if(status)
     {
         printf("STATUS GEQRF=%d\n", status);
     }
     status = cusolverDnDorgqr(cusolverhandle, nrows, mn2, mn2, device_Q, nrows,
-            device_tau, device_work, lwork, &devinfo);
+            device_tau, device_work, lwork, mydevinfo);
     if(status)
     {
         printf("STATUS ORGQR=%d\n", status);
     }
-    cudaMemcpy(host_S, device_Q, sizeof(*device_Q), cudaMemcpyDeviceToHost);
-    printf("Q[0]=%f\n", host_S[0]);
     cublasDgemm(cuhandle, CUBLAS_OP_T, CUBLAS_OP_N, ncols, mn2, nrows, &one, D,
             nrows, device_Q, nrows, &zero, device_X, ncols);
-    cudaMemcpy(host_S, device_X, sizeof(*device_X), cudaMemcpyDeviceToHost);
-    printf("X[0]=%f\n", host_S[0]);
     status = cusolverDnDgesvd(cusolverhandle, 'S', 'S', ncols, mn2, device_X,
             ncols, device_S, device_U, ncols, device_V, mn2, device_work,
-            lwork, device_rwork, &devinfo);
-    if(devinfo)
-    {
-        printf("DEVINFO=%d\n", devinfo);
-    }
+            lwork, device_rwork, mydevinfo);
     if(status)
     {
-        printf("STATUS GESVDJ=%d\n", status);
+        printf("STATUS GESVD=%d\n", status);
     }
-    //kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, work, nrows,
-    //        nrows*ncols, device_S, nrows, 1);
     cudaMemcpy(host_S, device_S, mn2*sizeof(*host_S), cudaMemcpyDeviceToHost);
-    printf("SV:");
-    for(int i = 0; i < 5; i++)
-        printf(" %f", host_S[i]);
-    printf("\n\n\n\n");
+    //printf("SV:");
+    //for(int i = 0; i < 5; i++)
+    //    printf(" %f", host_S[i]);
+    //printf("\n");
     // Get rank, corresponding to given error tolerance
     int local_rank = starsh_dense_dsvfr(mn2, host_S, tol);
     if(local_rank < mn/2 && local_rank <= maxrank)
     {
         // Compute right factor of low-rank approximation, using given left
         // singular vectors
-        cublasDgemm(cuhandle, CUBLAS_OP_N, CUBLAS_OP_N, nrows, local_rank,
+        cublasDgemm(cuhandle, CUBLAS_OP_N, CUBLAS_OP_T, nrows, local_rank,
                 mn2, &one, device_Q, nrows, device_V, mn2, &zero, U, nrows);
         cublasDcopy(cuhandle, ncols*local_rank, device_U, 1, V, 1);
         for(int i = 0; i < local_rank; i++)
         {
-            cublasDscal(cuhandle, ncols, &device_S[i], V+i*ncols, 1);
+            cublasDscal(cuhandle, ncols, &host_S[i], V+i*ncols, 1);
         }
     }
     else
