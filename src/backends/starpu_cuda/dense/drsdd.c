@@ -12,23 +12,23 @@
 
 #include "common.h"
 #include "starsh.h"
-#include "starsh-starpu-kblas.h"
+#include "starsh-starpu-cuda.h"
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-#include <kblas.h>
+#include <cusolverDn.h>
 
-void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffer[], void *cl_arg)
+void starsh_dense_dlrrsdd_starpu_cuda_cpu(void *buffer[], void *cl_arg)
 //! STARPU kernel for 1-way randomized SVD on a tile.
 {
     int maxrank;
     int oversample;
     double tol;
     cublasHandle_t *cublas_handles;
-    kblasHandle_t *kblas_handles;
+    cusolverDnHandle_t *cusolver_handles;
     double *singular_values;
     starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &kblas_handles, &singular_values);
-    //printf("CODELET: %p, %p, %p\n", cublas_handles, kblas_handles,
+            &cublas_handles, &cusolver_handles, &singular_values);
+    //printf("CODELET: %p, %p, %p\n", cublas_handles, cusolver_handles,
     //        singular_values);
     double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
     int nrows = STARPU_MATRIX_GET_NX(buffer[0]);
@@ -43,17 +43,17 @@ void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffer[], void *cl_arg)
             maxrank, oversample, tol, work, lwork, iwork);
 }
 
-void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
+void starsh_dense_dlrrsdd_starpu_cuda_gpu(void *buffer[], void *cl_arg)
 //! STARPU kernel for 1-way randomized SVD on a tile.
 {
     int maxrank;
     int oversample;
     double tol;
     cublasHandle_t *cublas_handles;
-    kblasHandle_t *kblas_handles;
+    cusolverDnHandle_t *cusolver_handles;
     double *singular_values;
     starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &kblas_handles, &singular_values);
+            &cublas_handles, &cusolver_handles, &singular_values);
     double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
     int nrows = STARPU_MATRIX_GET_NX(buffer[0]);
     int ncols = STARPU_MATRIX_GET_NY(buffer[0]);
@@ -66,7 +66,7 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     if(mn2 > mn)
         mn2 = mn;
     int id = starpu_worker_get_id();
-    kblasHandle_t khandle = kblas_handles[id];
+    cusolverDnHandle_t cusolverhandle = cusolver_handles[id];
     cublasHandle_t cuhandle = cublas_handles[id];
     double *host_S = singular_values+id*(maxrank+oversample);
     double *device_S = work+nrows*ncols;
@@ -75,8 +75,8 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     // Run randomized SVD, get left singular vectors and singular values
     printf("%d %d %d %p %d %d %p %d\n", nrows, ncols, mn2, work, nrows,
             nrows*ncols, device_S, nrows);
-    kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, work, nrows,
-            nrows*ncols, device_S, nrows, 1);
+    //kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, work, nrows,
+    //        nrows*ncols, device_S, nrows, 1);
     cudaMemcpy(host_S, device_S, mn2*sizeof(*host_S), cudaMemcpyDeviceToHost);
     //printf("SV:");
     //for(int i = 0; i < mn2; i++)

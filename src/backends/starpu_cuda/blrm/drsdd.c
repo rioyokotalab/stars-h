@@ -12,18 +12,18 @@
 
 #include "common.h"
 #include "starsh.h"
-#include "starsh-starpu-kblas.h"
+#include "starsh-starpu-cuda.h"
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-#include <kblas.h>
 #include <starpu.h>
+#include <cusolverDn.h>
 
-static void init_starpu_kblas(void *args)
+static void init_starpu_cuda(void *args)
 {
     cublasHandle_t *cublas_handles;
-    kblasHandle_t *kblas_handles;
+    cusolverDnHandle_t *cusolver_handles;
     int nb, nsamples;
-    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles, &nb,
+    starpu_codelet_unpack_args(args, &cublas_handles, &cusolver_handles, &nb,
             &nsamples);
     int id = starpu_worker_get_id();
     cublasStatus_t status;
@@ -36,25 +36,21 @@ static void init_starpu_kblas(void *args)
     }
     //*/
     //cublas_handles[id] = starpu_cublas_get_local_handle();
-    kblasCreate(&kblas_handles[id]);
-    //kblasSetStream(kblas_handles[id], starpu_cuda_get_local_stream());
-    kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, 1);
-    kblasAllocateWorkspace(kblas_handles[id]);
-    //cublas_handles[id] = kblasGetCublasHandle(kblas_handles[id]);
+    cusolverDnCreate(&cusolver_handles[id]);
 }
 
-static void deinit_starpu_kblas(void *args)
+static void deinit_starpu_cuda(void *args)
 {
     cublasHandle_t *cublas_handles;
-    kblasHandle_t *kblas_handles;
-    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles, 0);
+    cusolverDnHandle_t *cusolver_handles;
+    starpu_codelet_unpack_args(args, &cublas_handles, &cusolver_handles, 0);
     int id = starpu_worker_get_id();
     //printf("CUBLAS deinit worker %d at %p\n", id, &cublas_handles[id]);
-    kblasDestroy(&kblas_handles[id]);
-    //cublasDestroy(cublas_handles[id]);
+    cusolverDnDestroy(cusolver_handles[id]);
+    cublasDestroy(cublas_handles[id]);
 }
 
-int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
+int starsh_blrm__drsdd_starpu_cuda(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly)
 //! Approximate each tile by randomized SVD.
 /*!
@@ -89,18 +85,16 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     size_t offset_U = 0, offset_V = 0, offset_D = 0;
     STARSH_int bi, bj = 0;
     const int oversample = starsh_params.oversample;
-    // Init CuBLAS and KBLAS handles and temp buffers for all workers (but they
-    // are used only in GPU codelets)
+    // Init CuBLAS and CuSolver handles and temp buffers for all workers (but
+    // they are used only in GPU codelets)
     int workers = starpu_worker_get_count();
     cublasHandle_t cublas_handles[workers];
-    kblasHandle_t kblas_handles[workers];
+    cusolverDnHandle_t cusolver_handles[workers];
     double singular_values[workers*(maxrank+oversample)];
-    //printf("MAIN: %p, %p, %p\n", cublas_handles, kblas_handles,
-    //        singular_values);
     cublasHandle_t *cuhandles = cublas_handles;
-    kblasHandle_t *khandles = kblas_handles;
+    cusolverDnHandle_t *cuhandles2 = cusolver_handles;
     double *svhandles = singular_values;
-    //printf("MAIN: %p, %p, %p\n", cuhandles, khandles, svhandles);
+    //printf("MAIN: %p, %p, %p\n", cuhandles, cuhandles2, svhandles);
     void *args_buffer;
     size_t args_buffer_size = 0;
     // This works only for TLR with equal tiles
@@ -108,16 +102,16 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     int nsamples = maxrank+oversample;
     starpu_codelet_pack_args(&args_buffer, &args_buffer_size,
             STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-            STARPU_VALUE, &khandles, sizeof(khandles),
+            STARPU_VALUE, &cuhandles2, sizeof(cuhandles2),
             STARPU_VALUE, &nb, sizeof(nb),
             STARPU_VALUE, &nsamples, sizeof(nsamples),
             0);
-    starpu_execute_on_each_worker(init_starpu_kblas, args_buffer, STARPU_CUDA);
+    starpu_execute_on_each_worker(init_starpu_cuda, args_buffer, STARPU_CUDA);
     // Init codelet structs and handles
     struct starpu_codelet codelet =
     {
-        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
-        //.cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
+        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_cuda_cpu},
+        //.cuda_funcs = {starsh_dense_dlrrsdd_starpu_cuda_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 6,
         .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_SCRATCH,
@@ -125,7 +119,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     };
     struct starpu_codelet codelet2 =
     {
-        .cpu_funcs = {starsh_dense_kernel_starpu_kblas_cpu},
+        .cpu_funcs = {starsh_dense_kernel_starpu_cuda_cpu},
         .nbuffers = 1,
         .modes = {STARPU_W}
     };
@@ -218,7 +212,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &oversample, sizeof(oversample),
                 STARPU_VALUE, &tol, sizeof(tol),
                 STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &cuhandles2, sizeof(cuhandles2),
                 STARPU_VALUE, &svhandles, sizeof(svhandles),
                 STARPU_R, D_handle[bi],
                 STARPU_W, U_handle[bi],
@@ -406,7 +400,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         free(false_far);
     // Finish with creating instance of Block Low-Rank Matrix with given
     // buffers
-    starpu_execute_on_each_worker(deinit_starpu_kblas, args_buffer,
+    starpu_execute_on_each_worker(deinit_starpu_cuda, args_buffer,
             STARPU_CUDA);
     return starsh_blrm_new(matrix, F, far_rank, far_U, far_V, onfly, near_D,
             alloc_U, alloc_V, alloc_D, '1');

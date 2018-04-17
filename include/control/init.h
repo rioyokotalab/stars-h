@@ -11,7 +11,7 @@
  * */
 
 //! Set number of backends and default one
-#define BACKEND_NUM 7
+#define BACKEND_NUM 8
 #define BACKEND_DEFAULT STARSH_BACKEND_SEQUENTIAL
 #ifdef OPENMP
     #undef BACKEND_DEFAULT
@@ -59,10 +59,15 @@ struct
 #else
     {"MPI_STARPU", STARSH_BACKEND_NOTSUPPORTED},
 #endif
-#ifdef STARPU
+#if defined(STARPU) && defined(KBLAS)
     {"STARPU_KBLAS", STARSH_BACKEND_STARPU_KBLAS},
 #else
     {"STARPU_KBLAS", STARSH_BACKEND_NOTSUPPORTED},
+#endif
+#if defined(STARPU) && defined(CUDA)
+    {"STARPU_CUDA", STARSH_BACKEND_STARPU_CUDA},
+#else
+    {"STARPU_CUDA", STARSH_BACKEND_NOTSUPPORTED},
 #endif
 };
 
@@ -145,10 +150,20 @@ static STARSH_blrm_approximate *(dlr_starpu_mpi[LRENGINE_NUM]) =
 //! Array of approximation functions for STARPU_KBLAS backend
 static STARSH_blrm_approximate *(dlr_starpu_kblas[LRENGINE_NUM]) =
 {
-    #ifdef STARPU
+    #if defined(STARPU) && defined(KBLAS)
     starsh_blrm__dsdd_starpu, starsh_blrm__dsdd_starpu,
     starsh_blrm__dqp3_starpu, starsh_blrm__drsdd_starpu_kblas,
     starsh_blrm__drsdd_starpu_kblas
+    #endif
+};
+
+//! Array of approximation functions for STARPU_CUDA backend
+static STARSH_blrm_approximate *(dlr_starpu_cuda[LRENGINE_NUM]) =
+{
+    #if defined(STARPU) && defined(CUDA)
+    starsh_blrm__dsdd_starpu, starsh_blrm__dsdd_starpu,
+    starsh_blrm__dqp3_starpu, starsh_blrm__drsdd_starpu_cuda,
+    starsh_blrm__drsdd_starpu_cuda
     #endif
 };
 
@@ -156,6 +171,6 @@ static STARSH_blrm_approximate *(dlr_starpu_kblas[LRENGINE_NUM]) =
 static STARSH_blrm_approximate *(*dlr[BACKEND_NUM]) =
 {
     dlr_seq, dlr_omp, dlr_mpi, dlr_mpi, dlr_starpu, dlr_starpu_mpi,
-    dlr_starpu_kblas
+    dlr_starpu_kblas, dlr_starpu_cuda
 };
 

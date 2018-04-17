@@ -73,6 +73,7 @@ option(STARPU "Use StarPU" ON)
 # to provide path by means of
 # CFLAGS="-I/path/to/kblas/include -L/path/to/kblas/lib"
 option(KBLAS "Use KBLAS" OFF)
+option(CUDA "Use CUDA" ON)
 
 # Option to force using parallel blas instead of sequential
 option(USE_PARALLEL_BLAS "Prefer parallel blas libraries" OFF)
@@ -178,6 +179,9 @@ if(STARPU)
     endif()
 endif()
 
+if(CUDA)
+    add_definitions("-DCUDA")
+endif(CUDA)
 # Check if GNU Scientific Library is available (for Matern kernel and
 # Bessel function)
 if(GSL)
