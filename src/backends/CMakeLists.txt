@@ -19,14 +19,14 @@ set(BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_sequential>)
 # List StarPU sources for docs or build
 if(STARPU OR DOCS STREQUAL "FULL")
     add_subdirectory("starpu")
-    #add_subdirectory("starpu_kblas")
+    add_subdirectory("starpu_kblas")
     add_subdirectory("starpu_cuda")
 endif()
 
 # Add StarPU backend
 if(STARPU)
     list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_starpu>)
-    #list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_starpu_kblas>)
+    list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_starpu_kblas>)
     list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_starpu_cuda>)
 endif()
 

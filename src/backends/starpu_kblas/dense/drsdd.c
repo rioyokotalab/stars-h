@@ -71,12 +71,13 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     double *host_S = singular_values+id*(maxrank+oversample);
     double *device_S = work+nrows*ncols;
     // Create copy of D, since kblas_rsvd spoils it
-    cublasDcopy(cuhandle, nrows*ncols, D, 1, work, 1);
+    //cublasDcopy(cuhandle, nrows*ncols, D, 1, work, 1);
     // Run randomized SVD, get left singular vectors and singular values
-    printf("%d %d %d %p %d %d %p %d\n", nrows, ncols, mn2, work, nrows,
-            nrows*ncols, device_S, nrows);
+    //printf("%d %d %d %p %d %d %p %d\n", nrows, ncols, mn2, work, nrows,
+    //        nrows*ncols, device_S, nrows);
     kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, work, nrows,
             nrows*ncols, device_S, nrows, 1);
+    /*
     cudaMemcpy(host_S, device_S, mn2*sizeof(*host_S), cudaMemcpyDeviceToHost);
     //printf("SV:");
     //for(int i = 0; i < mn2; i++)
@@ -102,5 +103,6 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
             cudaMemcpyHostToDevice);
     if(err != cudaSuccess)
         printf("ERROR IN CUDAMEMCPY\n");
+    */
 }
 

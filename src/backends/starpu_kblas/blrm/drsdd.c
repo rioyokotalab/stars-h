@@ -27,20 +27,19 @@ static void init_starpu_kblas(void *args)
             &nsamples);
     int id = starpu_worker_get_id();
     cublasStatus_t status;
-    printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
-    ///*
-    status = cublasCreate(&cublas_handles[id]);
-    if(status != CUBLAS_STATUS_SUCCESS)
-    {
+    //printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
+    //status = cublasCreate(&cublas_handles[id]);
+    //if(status != CUBLAS_STATUS_SUCCESS)
+    //{
         //printf("CUBLAS initialization failed\n");
-    }
-    //*/
+    //}
     //cublas_handles[id] = starpu_cublas_get_local_handle();
     kblasCreate(&kblas_handles[id]);
-    //kblasSetStream(kblas_handles[id], starpu_cuda_get_local_stream());
+    kblasSetStream(kblas_handles[id], starpu_cuda_get_local_stream());
+    //cublasSetStream(cublas_handles[id], starpu_cuda_get_local_stream());
     kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, 1);
     kblasAllocateWorkspace(kblas_handles[id]);
-    //cublas_handles[id] = kblasGetCublasHandle(kblas_handles[id]);
+    cublas_handles[id] = kblasGetCublasHandle(kblas_handles[id]);
 }
 
 static void deinit_starpu_kblas(void *args)
@@ -116,8 +115,8 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     // Init codelet structs and handles
     struct starpu_codelet codelet =
     {
-        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
-        //.cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
+        //.cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
+        .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 6,
         .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_SCRATCH,
@@ -244,7 +243,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     for(bi = 0; bi < nblocks_far; bi++)
     {
         //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        //far_rank[bi] = -1;
+        far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }
