@@ -16,15 +16,18 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <kblas.h>
+#include "batch_rand.h"
 #include <starpu.h>
 
 static void init_starpu_kblas(void *args)
 {
     cublasHandle_t *cublas_handles;
     kblasHandle_t *kblas_handles;
+    kblasRandState_t *kblas_states;
+    cudaStream_t stream = starpu_cuda_get_local_stream();
     int nb, nsamples;
-    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles, &nb,
-            &nsamples);
+    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles,
+            &kblas_states, &nb, &nsamples);
     int id = starpu_worker_get_id();
     cublasStatus_t status;
     //printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
@@ -35,22 +38,27 @@ static void init_starpu_kblas(void *args)
     //}
     //cublas_handles[id] = starpu_cublas_get_local_handle();
     kblasCreate(&kblas_handles[id]);
-    kblasSetStream(kblas_handles[id], starpu_cuda_get_local_stream());
+    kblasSetStream(kblas_handles[id], stream);
     //cublasSetStream(cublas_handles[id], starpu_cuda_get_local_stream());
     kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, 1);
     kblasAllocateWorkspace(kblas_handles[id]);
     cublas_handles[id] = kblasGetCublasHandle(kblas_handles[id]);
+    kblasInitRandState(kblas_handles[id], &kblas_states[id], 16384*2, 0);
+    cudaStreamSynchronize(stream);
 }
 
 static void deinit_starpu_kblas(void *args)
 {
     cublasHandle_t *cublas_handles;
     kblasHandle_t *kblas_handles;
-    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles, 0);
+    kblasRandState_t *kblas_states;
+    starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles,
+            &kblas_states, 0);
     int id = starpu_worker_get_id();
     //printf("CUBLAS deinit worker %d at %p\n", id, &cublas_handles[id]);
-    kblasDestroy(&kblas_handles[id]);
     //cublasDestroy(cublas_handles[id]);
+    kblasDestroyRandState(kblas_states[id]);
+    kblasDestroy(&kblas_handles[id]);
 }
 
 int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
@@ -93,11 +101,13 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     int workers = starpu_worker_get_count();
     cublasHandle_t cublas_handles[workers];
     kblasHandle_t kblas_handles[workers];
+    kblasRandState_t kblas_states[workers];
     double singular_values[workers*(maxrank+oversample)];
     //printf("MAIN: %p, %p, %p\n", cublas_handles, kblas_handles,
     //        singular_values);
     cublasHandle_t *cuhandles = cublas_handles;
     kblasHandle_t *khandles = kblas_handles;
+    kblasRandState_t *kstates = kblas_states;
     double *svhandles = singular_values;
     //printf("MAIN: %p, %p, %p\n", cuhandles, khandles, svhandles);
     void *args_buffer;
@@ -108,6 +118,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     starpu_codelet_pack_args(&args_buffer, &args_buffer_size,
             STARPU_VALUE, &cuhandles, sizeof(cuhandles),
             STARPU_VALUE, &khandles, sizeof(khandles),
+            STARPU_VALUE, &kstates, sizeof(kstates),
             STARPU_VALUE, &nb, sizeof(nb),
             STARPU_VALUE, &nsamples, sizeof(nsamples),
             0);
@@ -171,7 +182,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
             int lwork = ncols, lwork_sdd = (4*mn2+7)*mn2;
             if(lwork_sdd > lwork)
                 lwork = lwork_sdd;
-            lwork += mn2*(2*ncols+nrows+mn2+1);
+            lwork += mn2*(2*ncols+nrows+mn2+1)+nrows*ncols;
             int liwork = 8*mn2;
             int shape_U[] = {nrows, maxrank};
             int shape_V[] = {ncols, maxrank};
@@ -218,6 +229,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &tol, sizeof(tol),
                 STARPU_VALUE, &cuhandles, sizeof(cuhandles),
                 STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &kstates, sizeof(kstates),
                 STARPU_VALUE, &svhandles, sizeof(svhandles),
                 STARPU_R, D_handle[bi],
                 STARPU_W, U_handle[bi],
@@ -243,7 +255,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     for(bi = 0; bi < nblocks_far; bi++)
     {
         //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        far_rank[bi] = -1;
+        //far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }

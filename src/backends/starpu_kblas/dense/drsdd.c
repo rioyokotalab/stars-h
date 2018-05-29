@@ -16,6 +16,7 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <kblas.h>
+#include "batch_rand.h"
 
 void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffer[], void *cl_arg)
 //! STARPU kernel for 1-way randomized SVD on a tile.
@@ -25,9 +26,10 @@ void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffer[], void *cl_arg)
     double tol;
     cublasHandle_t *cublas_handles;
     kblasHandle_t *kblas_handles;
+    kblasRandState_t *kblas_states;
     double *singular_values;
     starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &kblas_handles, &singular_values);
+            &cublas_handles, &kblas_handles, &kblas_states, &singular_values);
     //printf("CODELET: %p, %p, %p\n", cublas_handles, kblas_handles,
     //        singular_values);
     double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
@@ -51,9 +53,10 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     double tol;
     cublasHandle_t *cublas_handles;
     kblasHandle_t *kblas_handles;
+    kblasRandState_t *kblas_states;
     double *singular_values;
     starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &kblas_handles, &singular_values);
+            &cublas_handles, &kblas_handles, &kblas_states, &singular_values);
     double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
     int nrows = STARPU_MATRIX_GET_NX(buffer[0]);
     int ncols = STARPU_MATRIX_GET_NY(buffer[0]);
@@ -68,17 +71,21 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     int id = starpu_worker_get_id();
     kblasHandle_t khandle = kblas_handles[id];
     cublasHandle_t cuhandle = cublas_handles[id];
+    kblasRandState_t state = kblas_states[id];
+    cudaStream_t stream = starpu_cuda_get_local_stream();
     double *host_S = singular_values+id*(maxrank+oversample);
     double *device_S = work+nrows*ncols;
+    //double *device_S = work;
     // Create copy of D, since kblas_rsvd spoils it
-    //cublasDcopy(cuhandle, nrows*ncols, D, 1, work, 1);
+    cublasDcopy(cuhandle, nrows*ncols, D, 1, work, 1);
     // Run randomized SVD, get left singular vectors and singular values
     //printf("%d %d %d %p %d %d %p %d\n", nrows, ncols, mn2, work, nrows,
     //        nrows*ncols, device_S, nrows);
     kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, work, nrows,
-            nrows*ncols, device_S, nrows, 1);
-    /*
-    cudaMemcpy(host_S, device_S, mn2*sizeof(*host_S), cudaMemcpyDeviceToHost);
+            nrows*ncols, device_S, nrows, state, 1);
+    cudaMemcpyAsync(host_S, device_S, mn2*sizeof(*host_S),
+            cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
     //printf("SV:");
     //for(int i = 0; i < mn2; i++)
     //    printf(" %f", host_S[i]);
@@ -99,10 +106,8 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
         local_rank = -1;
     cudaError_t err;
     // Write new rank back into device memory
-    err = cudaMemcpy(rank, &local_rank, sizeof(local_rank),
-            cudaMemcpyHostToDevice);
-    if(err != cudaSuccess)
-        printf("ERROR IN CUDAMEMCPY\n");
-    */
+    cudaMemcpyAsync(rank, &local_rank, sizeof(local_rank),
+            cudaMemcpyHostToDevice, starpu_cuda_get_local_stream());
+    cudaStreamSynchronize(starpu_cuda_get_local_stream());
 }
 
