@@ -50,20 +50,19 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
 {
     int maxrank;
     int oversample;
-    double tol;
     cublasHandle_t *cublas_handles;
     kblasHandle_t *kblas_handles;
     kblasRandState_t *kblas_states;
-    double *singular_values;
-    starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample, &tol,
-            &cublas_handles, &kblas_handles, &kblas_states, &singular_values);
+    starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample,
+            &cublas_handles, &kblas_handles, &kblas_states);
     double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
     int nrows = STARPU_MATRIX_GET_NX(buffer[0]);
     int ncols = STARPU_MATRIX_GET_NY(buffer[0]);
-    double *U = (double *)STARPU_VECTOR_GET_PTR(buffer[1]);
-    double *V = (double *)STARPU_VECTOR_GET_PTR(buffer[2]);
-    int *rank = (int *)STARPU_VECTOR_GET_PTR(buffer[3]);
-    double *work = (double *)STARPU_VECTOR_GET_PTR(buffer[4]);
+    double *Dcopy = (double *)STARPU_MATRIX_GET_PTR(buffer[1]);
+    double *S = (double *)STARPU_VECTOR_GET_PTR(buffer[2]);
+    double *D2 = (double *)STARPU_MATRIX_GET_PTR(buffer[3]);
+    double *D2copy = (double *)STARPU_MATRIX_GET_PTR(buffer[4]);
+    double *S2 = (double *)STARPU_VECTOR_GET_PTR(buffer[5]);
     int mn = nrows < ncols ? nrows : ncols;
     int mn2 = maxrank+oversample;
     if(mn2 > mn)
@@ -73,16 +72,24 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     cublasHandle_t cuhandle = cublas_handles[id];
     kblasRandState_t state = kblas_states[id];
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    double *host_S = singular_values+id*(maxrank+oversample);
-    double *device_S = work+nrows*ncols;
-    //double *device_S = work;
     // Create copy of D, since kblas_rsvd spoils it
-    cublasDcopy(cuhandle, nrows*ncols, D, 1, work, 1);
+    cublasDcopy(cuhandle, nrows*ncols, D, 1, Dcopy, 1);
+    cublasDcopy(cuhandle, nrows*ncols, D2, 1, D2copy, 1);
     // Run randomized SVD, get left singular vectors and singular values
     //printf("%d %d %d %p %d %d %p %d\n", nrows, ncols, mn2, work, nrows,
     //        nrows*ncols, device_S, nrows);
-    kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, work, nrows,
-            nrows*ncols, device_S, nrows, state, 1);
+    //kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, D, nrows,
+    //        nrows*ncols, S, nrows, state, 1);
+    double *ptrs_host[4] = {D, D2, S, S2};
+    void *ptrs;
+    cudaMalloc(&ptrs, 4*sizeof(double *));
+    double **ptrs_dev = ptrs;
+    cudaMemcpyAsync(ptrs, ptrs_host, sizeof(ptrs_host),
+            cudaMemcpyHostToDevice, stream);
+    kblasDrsvd_batch(khandle, nrows, ncols, mn2, ptrs_dev, nrows, ptrs_dev+2,
+            state, 2);
+    cudaFree(ptrs);
+    /*
     cudaMemcpyAsync(host_S, device_S, mn2*sizeof(*host_S),
             cudaMemcpyDeviceToHost, stream);
     cudaStreamSynchronize(stream);
@@ -105,9 +112,63 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     else
         local_rank = -1;
     cudaError_t err;
+    */
     // Write new rank back into device memory
-    cudaMemcpyAsync(rank, &local_rank, sizeof(local_rank),
-            cudaMemcpyHostToDevice, starpu_cuda_get_local_stream());
-    cudaStreamSynchronize(starpu_cuda_get_local_stream());
+    //int local_rank = -1;
+    //cudaMemcpyAsync(rank, &local_rank, sizeof(local_rank),
+    //        cudaMemcpyHostToDevice, starpu_cuda_get_local_stream());
+    //cudaStreamSynchronize(starpu_cuda_get_local_stream());
+}
+
+void starsh_dense_dlrrsdd_starpu_kblas_cpu_S(void *buffer[], void *cl_arg)
+//! STARPU kernel for 1-way randomized SVD on a tile.
+{
+    int size, mn, maxrank;
+    double tol;
+    starpu_codelet_unpack_args(cl_arg, &size, &mn, &maxrank, &tol);
+    double *S = (double *)STARPU_VECTOR_GET_PTR(buffer[0]);
+    int *rank = (int *)STARPU_VECTOR_GET_PTR(buffer[1]);
+    *rank = starsh_dense_dsvfr(size, S, tol);
+    if(*rank >= mn/2 || *rank > maxrank)
+        *rank = -1;
+}
+
+void starsh_dense_dlrrsdd_starpu_kblas_gpu_dgemm(void *buffer[], void *cl_arg)
+//! STARPU kernel for 1-way randomized SVD on a tile.
+{
+    int maxrank;
+    int oversample;
+    cublasHandle_t *cublas_handles;
+    kblasHandle_t *kblas_handles;
+    kblasRandState_t *kblas_states;
+    starpu_codelet_unpack_args(cl_arg, &maxrank, &oversample,
+            &cublas_handles, &kblas_handles, &kblas_states);
+    double *D = (double *)STARPU_MATRIX_GET_PTR(buffer[0]);
+    int nrows = STARPU_MATRIX_GET_NX(buffer[0]);
+    int ncols = STARPU_MATRIX_GET_NY(buffer[0]);
+    double *Dcopy = (double *)STARPU_MATRIX_GET_PTR(buffer[1]);
+    int *rank = (int *)STARPU_VECTOR_GET_PTR(buffer[2]);
+    double *U = (double *)STARPU_VECTOR_GET_PTR(buffer[3]);
+    double *V = (double *)STARPU_VECTOR_GET_PTR(buffer[4]);
+    int mn = nrows < ncols ? nrows : ncols;
+    int mn2 = maxrank+oversample;
+    if(mn2 > mn)
+        mn2 = mn;
+    int id = starpu_worker_get_id();
+    kblasHandle_t khandle = kblas_handles[id];
+    cublasHandle_t cuhandle = cublas_handles[id];
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    int local_rank;
+    cudaMemcpyAsync(&local_rank, rank, sizeof(int), cudaMemcpyDeviceToHost,
+            stream);
+    if(local_rank == -1)
+        return;
+    // Compute right factor of low-rank approximation, using given left
+    // singular vectors
+    double one = 1.0;
+    double zero = 0.0;
+    cublasDgemm(cuhandle, CUBLAS_OP_T, CUBLAS_OP_N, ncols, local_rank,
+            nrows, &one, Dcopy, nrows, D, nrows, &zero, V, ncols);
+    cublasDcopy(cuhandle, nrows*local_rank, D, 1, U, 1);
 }
 

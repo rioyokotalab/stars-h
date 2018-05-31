@@ -51,6 +51,9 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
 //void starsh_dense_dlrsdd_starpu(void *buffers[], void *cl_arg);
 void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffers[], void *cl_arg);
 void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffers[], void *cl_arg);
+void starsh_dense_dlrrsdd_starpu_kblas_cpu_S(void *buffers[], void *cl_arg);
+void starsh_dense_dlrrsdd_starpu_kblas_gpu_dgemm(void *buffers[],
+        void *cl_arg);
 //void starsh_dense_dlrqp3_starpu(void *buffers[], void *cl_arg);
 void starsh_dense_kernel_starpu_kblas_cpu(void *buffers[], void *cl_arg);
 //void starsh_dense_dgemm_starpu(void *buffers[], void *cl_arg);
