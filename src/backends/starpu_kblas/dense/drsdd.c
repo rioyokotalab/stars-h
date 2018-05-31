@@ -63,6 +63,12 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     double *D2 = (double *)STARPU_MATRIX_GET_PTR(buffer[3]);
     double *D2copy = (double *)STARPU_MATRIX_GET_PTR(buffer[4]);
     double *S2 = (double *)STARPU_VECTOR_GET_PTR(buffer[5]);
+    double *D3 = (double *)STARPU_MATRIX_GET_PTR(buffer[6]);
+    double *D3copy = (double *)STARPU_MATRIX_GET_PTR(buffer[7]);
+    double *S3 = (double *)STARPU_VECTOR_GET_PTR(buffer[8]);
+    double *D4 = (double *)STARPU_MATRIX_GET_PTR(buffer[9]);
+    double *D4copy = (double *)STARPU_MATRIX_GET_PTR(buffer[10]);
+    double *S4 = (double *)STARPU_VECTOR_GET_PTR(buffer[11]);
     int mn = nrows < ncols ? nrows : ncols;
     int mn2 = maxrank+oversample;
     if(mn2 > mn)
@@ -75,19 +81,21 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     // Create copy of D, since kblas_rsvd spoils it
     cublasDcopy(cuhandle, nrows*ncols, D, 1, Dcopy, 1);
     cublasDcopy(cuhandle, nrows*ncols, D2, 1, D2copy, 1);
+    cublasDcopy(cuhandle, nrows*ncols, D3, 1, D3copy, 1);
+    cublasDcopy(cuhandle, nrows*ncols, D4, 1, D4copy, 1);
     // Run randomized SVD, get left singular vectors and singular values
     //printf("%d %d %d %p %d %d %p %d\n", nrows, ncols, mn2, work, nrows,
     //        nrows*ncols, device_S, nrows);
     //kblasDrsvd_batch_strided(khandle, nrows, ncols, mn2, D, nrows,
     //        nrows*ncols, S, nrows, state, 1);
-    double *ptrs_host[4] = {D, D2, S, S2};
+    double *ptrs_host[8] = {D, D2, D3, D4, S, S2, S3, S4};
     void *ptrs;
-    cudaMalloc(&ptrs, 4*sizeof(double *));
+    cudaMalloc(&ptrs, sizeof(ptrs_host));
     double **ptrs_dev = ptrs;
     cudaMemcpyAsync(ptrs, ptrs_host, sizeof(ptrs_host),
             cudaMemcpyHostToDevice, stream);
-    kblasDrsvd_batch(khandle, nrows, ncols, mn2, ptrs_dev, nrows, ptrs_dev+2,
-            state, 2);
+    kblasDrsvd_batch(khandle, nrows, ncols, mn2, ptrs_dev, nrows, ptrs_dev+4,
+            state, 4);
     cudaFree(ptrs);
     /*
     cudaMemcpyAsync(host_S, device_S, mn2*sizeof(*host_S),

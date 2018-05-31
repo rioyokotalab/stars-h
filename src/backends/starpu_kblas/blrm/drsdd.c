@@ -133,8 +133,9 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         //.cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
         .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
-        .nbuffers = 6,
-        .modes = {STARPU_RW, STARPU_W, STARPU_W, STARPU_RW, STARPU_W, STARPU_W}
+        .nbuffers = 12,
+        .modes = {STARPU_RW, STARPU_W, STARPU_W, STARPU_RW, STARPU_W, STARPU_W,
+            STARPU_RW, STARPU_W, STARPU_W, STARPU_RW, STARPU_W, STARPU_W}
     };
     struct starpu_codelet codelet_cpu_2 =
     {
@@ -221,25 +222,29 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     // Work variables
     int info;
     // Simple cycle over all far-field admissible blocks
-    int batch_size = 2;
+    int batch_size = 4;
+    // Get corresponding sizes and minimum of them
+    int nrows = RC->size[0], ncols = CC->size[0];
+    int mn = nrows < ncols ? nrows : ncols;
+    int mn2 = maxrank+oversample;
+    if(mn2 > mn)
+        mn2 = mn;
     for(bi = 0; bi < nblocks_far; bi += batch_size)
     {
         // Get indexes of corresponding block row and block column
-        STARSH_int i = block_far[2*bi];
-        STARSH_int j = block_far[2*bi+1];
-        STARSH_int i2 = block_far[2*(bi+1)];
-        STARSH_int j2 = block_far[2*(bi+1)+1];
-        // Get corresponding sizes and minimum of them
-        int nrows = RC->size[i], ncols = CC->size[j];
-        int mn = nrows < ncols ? nrows : ncols;
-        int mn2 = maxrank+oversample;
-        if(mn2 > mn)
-            mn2 = mn;
+        STARSH_int i1 = block_far[2*bi];
+        STARSH_int j1 = block_far[2*bi+1];
+        STARSH_int i2 = block_far[2*bi+2];
+        STARSH_int j2 = block_far[2*bi+3];
+        STARSH_int i3 = block_far[2*bi+4];
+        STARSH_int j3 = block_far[2*bi+5];
+        STARSH_int i4 = block_far[2*bi+6];
+        STARSH_int j4 = block_far[2*bi+7];
         // Generate matrix
         starpu_task_insert(&codelet_cpu_1,
                 STARPU_VALUE, &F, sizeof(F),
-                STARPU_VALUE, &i, sizeof(i),
-                STARPU_VALUE, &j, sizeof(j),
+                STARPU_VALUE, &i1, sizeof(i1),
+                STARPU_VALUE, &j1, sizeof(j1),
                 STARPU_W, D_handle[bi],
                 0);
         starpu_task_insert(&codelet_cpu_1,
@@ -248,19 +253,39 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &j2, sizeof(j2),
                 STARPU_W, D_handle[bi+1],
                 0);
+        starpu_task_insert(&codelet_cpu_1,
+                STARPU_VALUE, &F, sizeof(F),
+                STARPU_VALUE, &i3, sizeof(i3),
+                STARPU_VALUE, &j3, sizeof(j3),
+                STARPU_W, D_handle[bi+2],
+                0);
+        starpu_task_insert(&codelet_cpu_1,
+                STARPU_VALUE, &F, sizeof(F),
+                STARPU_VALUE, &i4, sizeof(i4),
+                STARPU_VALUE, &j4, sizeof(j4),
+                STARPU_W, D_handle[bi+3],
+                0);
         // Approximate
+        int nbatches = 4;
         starpu_task_insert(&codelet_gpu_1,
                 STARPU_VALUE, &maxrank, sizeof(maxrank),
                 STARPU_VALUE, &oversample, sizeof(oversample),
                 STARPU_VALUE, &cuhandles, sizeof(cuhandles),
                 STARPU_VALUE, &khandles, sizeof(khandles),
                 STARPU_VALUE, &kstates, sizeof(kstates),
+                STARPU_VALUE, &nbatches, sizeof(nbatches),
                 STARPU_RW, D_handle[bi],
                 STARPU_W, Dcopy_handle[bi],
                 STARPU_W, S_handle[bi],
                 STARPU_RW, D_handle[bi+1],
                 STARPU_W, Dcopy_handle[bi+1],
                 STARPU_W, S_handle[bi+1],
+                STARPU_RW, D_handle[bi+2],
+                STARPU_W, Dcopy_handle[bi+2],
+                STARPU_W, S_handle[bi+2],
+                STARPU_RW, D_handle[bi+3],
+                STARPU_W, Dcopy_handle[bi+3],
+                STARPU_W, S_handle[bi+3],
                 0);
         starpu_task_insert(&codelet_cpu_2,
                 STARPU_VALUE, &mn2, sizeof(mn2),
@@ -277,6 +302,22 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &tol, sizeof(tol),
                 STARPU_R, S_handle[bi+1],
                 STARPU_W, rank_handle[bi+1],
+                0);
+        starpu_task_insert(&codelet_cpu_2,
+                STARPU_VALUE, &mn2, sizeof(mn2),
+                STARPU_VALUE, &mn, sizeof(mn),
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &tol, sizeof(tol),
+                STARPU_R, S_handle[bi+2],
+                STARPU_W, rank_handle[bi+2],
+                0);
+        starpu_task_insert(&codelet_cpu_2,
+                STARPU_VALUE, &mn2, sizeof(mn2),
+                STARPU_VALUE, &mn, sizeof(mn),
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &tol, sizeof(tol),
+                STARPU_R, S_handle[bi+3],
+                STARPU_W, rank_handle[bi+3],
                 0);
         starpu_task_insert(&codelet_gpu_2,
                 STARPU_VALUE, &maxrank, sizeof(maxrank),
@@ -301,6 +342,30 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_R, rank_handle[bi+1],
                 STARPU_W, U_handle[bi+1],
                 STARPU_W, V_handle[bi+1],
+                0);
+        starpu_task_insert(&codelet_gpu_2,
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &oversample, sizeof(oversample),
+                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &kstates, sizeof(kstates),
+                STARPU_R, D_handle[bi+2],
+                STARPU_R, Dcopy_handle[bi+2],
+                STARPU_R, rank_handle[bi+2],
+                STARPU_W, U_handle[bi+2],
+                STARPU_W, V_handle[bi+2],
+                0);
+        starpu_task_insert(&codelet_gpu_2,
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &oversample, sizeof(oversample),
+                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &kstates, sizeof(kstates),
+                STARPU_R, D_handle[bi+3],
+                STARPU_R, Dcopy_handle[bi+3],
+                STARPU_R, rank_handle[bi+3],
+                STARPU_W, U_handle[bi+3],
+                STARPU_W, V_handle[bi+3],
                 0);
     }
     starpu_task_wait_for_all();
