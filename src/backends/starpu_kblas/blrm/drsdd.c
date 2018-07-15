@@ -18,6 +18,7 @@
 #include <kblas.h>
 #include "batch_rand.h"
 #include <starpu.h>
+#include <omp.h>
 
 static void init_starpu_kblas(void *args)
 {
@@ -30,16 +31,8 @@ static void init_starpu_kblas(void *args)
             &kblas_states, &nb, &nsamples);
     int id = starpu_worker_get_id();
     cublasStatus_t status;
-    //printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
-    //status = cublasCreate(&cublas_handles[id]);
-    //if(status != CUBLAS_STATUS_SUCCESS)
-    //{
-        //printf("CUBLAS initialization failed\n");
-    //}
-    //cublas_handles[id] = starpu_cublas_get_local_handle();
     kblasCreate(&kblas_handles[id]);
     kblasSetStream(kblas_handles[id], stream);
-    //cublasSetStream(cublas_handles[id], starpu_cuda_get_local_stream());
     kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, 1);
     kblasAllocateWorkspace(kblas_handles[id]);
     cublas_handles[id] = kblasGetCublasHandle(kblas_handles[id]);
@@ -55,8 +48,6 @@ static void deinit_starpu_kblas(void *args)
     starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles,
             &kblas_states, 0);
     int id = starpu_worker_get_id();
-    //printf("CUBLAS deinit worker %d at %p\n", id, &cublas_handles[id]);
-    //cublasDestroy(cublas_handles[id]);
     kblasDestroyRandState(kblas_states[id]);
     kblasDestroy(&kblas_handles[id]);
 }
@@ -93,7 +84,6 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     Array **far_U = NULL, **far_V = NULL, **near_D = NULL;
     int *far_rank = NULL;
     double *alloc_U = NULL, *alloc_V = NULL, *alloc_D = NULL;
-    size_t offset_U = 0, offset_V = 0, offset_D = 0;
     STARSH_int bi, bj = 0;
     const int oversample = starsh_params.oversample;
     // Init CuBLAS and KBLAS handles and temp buffers for all workers (but they
@@ -125,17 +115,16 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     struct starpu_codelet codelet_cpu_1 =
     {
         .cpu_funcs = {starsh_dense_kernel_starpu_kblas_cpu},
-        .nbuffers = 1,
-        .modes = {STARPU_W}
+        .nbuffers = 2,
+        .modes = {STARPU_W, STARPU_R}
     };
     struct starpu_codelet codelet_gpu_1 =
     {
         //.cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
         .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
-        .nbuffers = 12,
-        .modes = {STARPU_RW, STARPU_W, STARPU_W, STARPU_RW, STARPU_W, STARPU_W,
-            STARPU_RW, STARPU_W, STARPU_W, STARPU_RW, STARPU_W, STARPU_W}
+        .nbuffers = 3,
+        .modes = {STARPU_RW, STARPU_W, STARPU_W}
     };
     struct starpu_codelet codelet_cpu_2 =
     {
@@ -151,240 +140,145 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         .nbuffers = 5,
         .modes = {STARPU_R, STARPU_R, STARPU_R, STARPU_W, STARPU_W}
     };
-    starpu_data_handle_t rank_handle[nblocks_far];
-    starpu_data_handle_t D_handle[nblocks_far];
-    starpu_data_handle_t Dcopy_handle[nblocks_far];
-    starpu_data_handle_t U_handle[nblocks_far];
-    starpu_data_handle_t V_handle[nblocks_far];
-    starpu_data_handle_t S_handle[nblocks_far];
+    // Set size of batch
+    STARSH_int batch_size = 400;
+    // Ceil number of batches
+    STARSH_int nbatches = (nblocks_far-1)/batch_size + 1;
+    starpu_data_handle_t rank_handle[nbatches];
+    starpu_data_handle_t D_handle[nbatches];
+    starpu_data_handle_t Dcopy_handle[nbatches];
+    starpu_data_handle_t index_handle[nbatches];
+    starpu_data_handle_t U_handle[nbatches];
+    starpu_data_handle_t V_handle[nbatches];
+    starpu_data_handle_t S_handle[nbatches];
     // Init buffers to store low-rank factors of far-field blocks if needed
-    if(nblocks_far > 0)
+    if(nbatches > 0)
     {
         STARSH_MALLOC(far_U, nblocks_far);
         STARSH_MALLOC(far_V, nblocks_far);
         STARSH_MALLOC(far_rank, nblocks_far);
-        size_t size_U = 0, size_V = 0;
-        // Simple cycle over all far-field blocks
-        for(bi = 0; bi < nblocks_far; bi++)
-        {
-            // Get indexes of corresponding block row and block column
-            STARSH_int i = block_far[2*bi];
-            STARSH_int j = block_far[2*bi+1];
-            // Get corresponding sizes and minimum of them
-            size_U += RC->size[i];
-            size_V += CC->size[j];
-            //far_rank[bi] = -2;
-        }
-        size_U *= maxrank;
-        size_V *= maxrank;
+        size_t size_U = nblocks_far * nb * maxrank;
+        size_t size_V = size_U;
         STARSH_MALLOC(alloc_U, size_U);
         STARSH_MALLOC(alloc_V, size_V);
-        for(bi = 0; bi < nblocks_far; bi++)
+        // Get corresponding sizes and minimum of them
+        int mn = maxrank+oversample;
+        if(mn > nb)
+            mn = nb;
+        // Get size of temporary arrays
+        int lwork = nb;
+        int lwork_sdd = (4*mn+7) * mn;
+        if(lwork_sdd > lwork)
+            lwork = lwork_sdd;
+        lwork += mn*(3*nb+mn+1) + nb*nb;
+        int liwork = 8 * mn;
+        int shape[] = {nb, maxrank};
+        for(bi = 0; bi < nblocks_far; ++bi)
         {
-            // Get indexes of corresponding block row and block column
-            STARSH_int i = block_far[2*bi];
-            STARSH_int j = block_far[2*bi+1];
-            // Get corresponding sizes and minimum of them
-            int nrows = RC->size[i], ncols = CC->size[j];
-            int mn = nrows < ncols ? nrows : ncols;
-            int mn2 = maxrank+oversample;
-            if(mn2 > mn)
-                mn2 = mn;
-            // Get size of temporary arrays
-            int lwork = ncols, lwork_sdd = (4*mn2+7)*mn2;
-            if(lwork_sdd > lwork)
-                lwork = lwork_sdd;
-            lwork += mn2*(2*ncols+nrows+mn2+1)+nrows*ncols;
-            int liwork = 8*mn2;
-            int shape_U[] = {nrows, maxrank};
-            int shape_V[] = {ncols, maxrank};
-            double *U = alloc_U+offset_U, *V = alloc_V+offset_V;
-            offset_U += nrows*maxrank;
-            offset_V += ncols*maxrank;
-            array_from_buffer(far_U+bi, 2, shape_U, 'd', 'F', U);
-            array_from_buffer(far_V+bi, 2, shape_V, 'd', 'F', V);
+            STARSH_int offset = bi * nb * maxrank;
+            array_from_buffer(far_U+bi, 2, shape, 'd', 'F', alloc_U+offset);
+            array_from_buffer(far_V+bi, 2, shape, 'd', 'F', alloc_V+offset);
+        }
+        // START MEASURING TIME
+        double time0 = omp_get_wtime();
+        for(bi = 0; bi < nbatches; ++bi)
+        {
+            STARSH_int offset = bi * batch_size * nb * maxrank;
+            double *U = alloc_U + offset;
+            double *V = alloc_V + offset;
+            STARSH_int this_batch_size = nblocks_far - bi*batch_size;
+            if(this_batch_size > batch_size)
+                this_batch_size = batch_size;
+            STARSH_int D_size = this_batch_size * nb * nb;
+            STARSH_int U_size = this_batch_size * nb * maxrank;
+            STARSH_int V_size = U_size;
+            STARSH_int S_size = this_batch_size * mn;
+            //printf("THIS BATCH SIZE=%d\n", this_batch_size);
             starpu_vector_data_register(rank_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(far_rank+bi), 1, sizeof(*far_rank));
-            starpu_matrix_data_register(D_handle+bi, -1, 0, nrows, nrows,
-                    ncols, sizeof(double));
-            starpu_matrix_data_register(Dcopy_handle+bi, -1, 0, nrows, nrows,
-                    ncols, sizeof(double));
+                    (uintptr_t)(far_rank + bi*batch_size), this_batch_size,
+                    sizeof(*far_rank));
+            starpu_vector_data_register(D_handle+bi, -1, 0, D_size,
+                    sizeof(double));
+            starpu_vector_data_register(Dcopy_handle+bi, -1, 0, D_size,
+                    sizeof(double));
+            starpu_vector_data_register(index_handle+bi, STARPU_MAIN_RAM,
+                    (uintptr_t)(block_far + 2*bi*batch_size),
+                    2*this_batch_size, sizeof(*block_far));
             starpu_vector_data_register(U_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(far_U[bi]->data), nrows*maxrank, sizeof(*U));
+                    (uintptr_t)(U), U_size, sizeof(*U));
             starpu_vector_data_register(V_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(far_V[bi]->data), ncols*maxrank, sizeof(*V));
-            starpu_vector_data_register(S_handle+bi, -1, 0, maxrank+oversample,
+                    (uintptr_t)(V), V_size, sizeof(*V));
+            starpu_vector_data_register(S_handle+bi, -1, 0, S_size,
                     sizeof(*U));
         }
-        offset_U = 0;
-        offset_V = 0;
+        printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
     }
     // Work variables
     int info;
-    // Simple cycle over all far-field admissible blocks
-    int batch_size = 4;
-    // Get corresponding sizes and minimum of them
-    int nrows = RC->size[0], ncols = CC->size[0];
-    int mn = nrows < ncols ? nrows : ncols;
-    int mn2 = maxrank+oversample;
-    if(mn2 > mn)
-        mn2 = mn;
-    for(bi = 0; bi < nblocks_far; bi += batch_size)
+    // START MEASURING TIME
+    double time0 = omp_get_wtime();
+    for(bi = 0; bi < nbatches; ++bi)
     {
-        // Get indexes of corresponding block row and block column
-        STARSH_int i1 = block_far[2*bi];
-        STARSH_int j1 = block_far[2*bi+1];
-        STARSH_int i2 = block_far[2*bi+2];
-        STARSH_int j2 = block_far[2*bi+3];
-        STARSH_int i3 = block_far[2*bi+4];
-        STARSH_int j3 = block_far[2*bi+5];
-        STARSH_int i4 = block_far[2*bi+6];
-        STARSH_int j4 = block_far[2*bi+7];
+        //printf("RUNNING BATCH=%d\n", bi);
+        STARSH_int this_batch_size = nblocks_far - bi*batch_size;
+        if(this_batch_size > batch_size)
+            this_batch_size = batch_size;
         // Generate matrix
         starpu_task_insert(&codelet_cpu_1,
                 STARPU_VALUE, &F, sizeof(F),
-                STARPU_VALUE, &i1, sizeof(i1),
-                STARPU_VALUE, &j1, sizeof(j1),
+                STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
                 STARPU_W, D_handle[bi],
-                0);
-        starpu_task_insert(&codelet_cpu_1,
-                STARPU_VALUE, &F, sizeof(F),
-                STARPU_VALUE, &i2, sizeof(i2),
-                STARPU_VALUE, &j2, sizeof(j2),
-                STARPU_W, D_handle[bi+1],
-                0);
-        starpu_task_insert(&codelet_cpu_1,
-                STARPU_VALUE, &F, sizeof(F),
-                STARPU_VALUE, &i3, sizeof(i3),
-                STARPU_VALUE, &j3, sizeof(j3),
-                STARPU_W, D_handle[bi+2],
-                0);
-        starpu_task_insert(&codelet_cpu_1,
-                STARPU_VALUE, &F, sizeof(F),
-                STARPU_VALUE, &i4, sizeof(i4),
-                STARPU_VALUE, &j4, sizeof(j4),
-                STARPU_W, D_handle[bi+3],
-                0);
-        // Approximate
-        int nbatches = 4;
-        starpu_task_insert(&codelet_gpu_1,
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &oversample, sizeof(oversample),
-                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
-                STARPU_VALUE, &kstates, sizeof(kstates),
-                STARPU_VALUE, &nbatches, sizeof(nbatches),
-                STARPU_RW, D_handle[bi],
-                STARPU_W, Dcopy_handle[bi],
-                STARPU_W, S_handle[bi],
-                STARPU_RW, D_handle[bi+1],
-                STARPU_W, Dcopy_handle[bi+1],
-                STARPU_W, S_handle[bi+1],
-                STARPU_RW, D_handle[bi+2],
-                STARPU_W, Dcopy_handle[bi+2],
-                STARPU_W, S_handle[bi+2],
-                STARPU_RW, D_handle[bi+3],
-                STARPU_W, Dcopy_handle[bi+3],
-                STARPU_W, S_handle[bi+3],
-                0);
-        starpu_task_insert(&codelet_cpu_2,
-                STARPU_VALUE, &mn2, sizeof(mn2),
-                STARPU_VALUE, &mn, sizeof(mn),
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &tol, sizeof(tol),
-                STARPU_R, S_handle[bi],
-                STARPU_W, rank_handle[bi],
-                0);
-        starpu_task_insert(&codelet_cpu_2,
-                STARPU_VALUE, &mn2, sizeof(mn2),
-                STARPU_VALUE, &mn, sizeof(mn),
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &tol, sizeof(tol),
-                STARPU_R, S_handle[bi+1],
-                STARPU_W, rank_handle[bi+1],
-                0);
-        starpu_task_insert(&codelet_cpu_2,
-                STARPU_VALUE, &mn2, sizeof(mn2),
-                STARPU_VALUE, &mn, sizeof(mn),
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &tol, sizeof(tol),
-                STARPU_R, S_handle[bi+2],
-                STARPU_W, rank_handle[bi+2],
-                0);
-        starpu_task_insert(&codelet_cpu_2,
-                STARPU_VALUE, &mn2, sizeof(mn2),
-                STARPU_VALUE, &mn, sizeof(mn),
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &tol, sizeof(tol),
-                STARPU_R, S_handle[bi+3],
-                STARPU_W, rank_handle[bi+3],
-                0);
-        starpu_task_insert(&codelet_gpu_2,
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &oversample, sizeof(oversample),
-                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
-                STARPU_VALUE, &kstates, sizeof(kstates),
-                STARPU_R, D_handle[bi],
-                STARPU_R, Dcopy_handle[bi],
-                STARPU_R, rank_handle[bi],
-                STARPU_W, U_handle[bi],
-                STARPU_W, V_handle[bi],
-                0);
-        starpu_task_insert(&codelet_gpu_2,
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &oversample, sizeof(oversample),
-                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
-                STARPU_VALUE, &kstates, sizeof(kstates),
-                STARPU_R, D_handle[bi+1],
-                STARPU_R, Dcopy_handle[bi+1],
-                STARPU_R, rank_handle[bi+1],
-                STARPU_W, U_handle[bi+1],
-                STARPU_W, V_handle[bi+1],
-                0);
-        starpu_task_insert(&codelet_gpu_2,
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &oversample, sizeof(oversample),
-                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
-                STARPU_VALUE, &kstates, sizeof(kstates),
-                STARPU_R, D_handle[bi+2],
-                STARPU_R, Dcopy_handle[bi+2],
-                STARPU_R, rank_handle[bi+2],
-                STARPU_W, U_handle[bi+2],
-                STARPU_W, V_handle[bi+2],
-                0);
-        starpu_task_insert(&codelet_gpu_2,
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &oversample, sizeof(oversample),
-                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
-                STARPU_VALUE, &kstates, sizeof(kstates),
-                STARPU_R, D_handle[bi+3],
-                STARPU_R, Dcopy_handle[bi+3],
-                STARPU_R, rank_handle[bi+3],
-                STARPU_W, U_handle[bi+3],
-                STARPU_W, V_handle[bi+3],
+                STARPU_R, index_handle[bi],
                 0);
     }
     starpu_task_wait_for_all();
-    for(bi = 0; bi < nblocks_far; bi++)
+    double time1 = omp_get_wtime();
+    printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
+    time0 = time1;
+    for(bi = 0; bi < nbatches; ++bi)
+    {
+        //printf("RUNNING BATCH=%d\n", bi);
+        STARSH_int this_batch_size = nblocks_far - bi*batch_size;
+        if(this_batch_size > batch_size)
+            this_batch_size = batch_size;
+        // Run KBLAS_RSVD
+        starpu_task_insert(&codelet_gpu_1,
+                STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                STARPU_VALUE, &nb, sizeof(nb),
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &oversample, sizeof(oversample),
+                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &kstates, sizeof(kstates),
+                STARPU_RW, D_handle[bi],
+                STARPU_W, Dcopy_handle[bi],
+                STARPU_W, S_handle[bi],
+                0);
+        //*/
+    }
+    starpu_task_wait_for_all();
+    time1 = omp_get_wtime();
+    printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    time0 = time1;
+    for(bi = 0; bi < nbatches; ++bi)
     {
         starpu_data_unregister(rank_handle[bi]);
         starpu_data_unregister(D_handle[bi]);
         starpu_data_unregister(Dcopy_handle[bi]);
+        starpu_data_unregister(index_handle[bi]);
         starpu_data_unregister(U_handle[bi]);
         starpu_data_unregister(V_handle[bi]);
         starpu_data_unregister(S_handle[bi]);
     }
+    printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
+            omp_get_wtime()-time0);
     // Get number of false far-field blocks
     STARSH_int nblocks_false_far = 0;
     STARSH_int *false_far = NULL;
     for(bi = 0; bi < nblocks_far; bi++)
     {
         //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        //far_rank[bi] = -1;
+        far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }
@@ -450,58 +344,55 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     // Compute near-field blocks if needed
     if(onfly == 0 && new_nblocks_near > 0)
     {
-        starpu_data_handle_t D_handle[new_nblocks_near];
         STARSH_MALLOC(near_D, new_nblocks_near);
-        size_t size_D = 0;
-        // Simple cycle over all near-field blocks
-        for(bi = 0; bi < new_nblocks_near; bi++)
-        {
-            // Get indexes of corresponding block row and block column
-            STARSH_int i = block_near[2*bi];
-            STARSH_int j = block_near[2*bi+1];
-            // Get corresponding sizes and minimum of them
-            size_t nrows = RC->size[i];
-            size_t ncols = CC->size[j];
-            // Update size_D
-            size_D += nrows*ncols;
-        }
+        size_t size_D = new_nblocks_near * nb * nb;
         STARSH_MALLOC(alloc_D, size_D);
+        nbatches = (new_nblocks_near-1)/batch_size + 1;
+        starpu_data_handle_t D_handle[nbatches];
+        starpu_data_handle_t index_handle[nbatches];
+        int shape[] = {nb, nb};
         // For each near-field block compute its elements
-        for(bi = 0; bi < new_nblocks_near; bi++)
+        for(bi = 0; bi < new_nblocks_near; ++bi)
         {
             // Get indexes of corresponding block row and block column
             STARSH_int i = block_near[2*bi];
             STARSH_int j = block_near[2*bi+1];
-            // Get corresponding sizes and minimum of them
-            int nrows = RC->size[i];
-            int ncols = CC->size[j];
-            int shape[2] = {nrows, ncols};
-            double *D = alloc_D+offset_D;
-            array_from_buffer(near_D+bi, 2, shape, 'd', 'F', D);
-            offset_D += near_D[bi]->size;
-            starpu_matrix_data_register(D_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(near_D[bi]->data), nrows, nrows, ncols,
-                    sizeof(*D));
+            array_from_buffer(near_D+bi, 2, shape, 'd', 'F',
+                    alloc_D + bi*nb*nb);
         }
-        for(bi = 0; bi < new_nblocks_near; bi++)
+        for(bi = 0; bi < nbatches; ++bi)
         {
-            // Get indexes of corresponding block row and block column
-            STARSH_int i = block_near[2*bi];
-            STARSH_int j = block_near[2*bi+1];
-            // Get matrix
+            STARSH_int this_batch_size = new_nblocks_near - bi*batch_size;
+            if(this_batch_size > batch_size)
+                this_batch_size = batch_size;
+            STARSH_int D_size = this_batch_size * nb * nb;
+            double *D = alloc_D + bi*batch_size*nb*nb;
+            starpu_vector_data_register(D_handle+bi, STARPU_MAIN_RAM,
+                    (uintptr_t)(D), D_size, sizeof(*D));
+            starpu_vector_data_register(index_handle+bi, STARPU_MAIN_RAM,
+                    (uintptr_t)(block_near + 2*bi*batch_size),
+                    2*this_batch_size, sizeof(*block_near));
+        }
+        for(bi = 0; bi < nbatches; ++bi)
+        {
+            STARSH_int this_batch_size = new_nblocks_near - bi*batch_size;
+            if(this_batch_size > batch_size)
+                this_batch_size = batch_size;
+            // Generate matrix
             starpu_task_insert(&codelet_cpu_1,
                     STARPU_VALUE, &F, sizeof(F),
-                    STARPU_VALUE, &i, sizeof(i),
-                    STARPU_VALUE, &j, sizeof(j),
+                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
                     STARPU_W, D_handle[bi],
+                    STARPU_R, index_handle[bi],
                     0);
         }
         // Wait in this scope, because all handles are not visible outside
         starpu_task_wait_for_all();
         // Unregister data
-        for(bi = 0; bi < new_nblocks_near; bi++)
+        for(bi = 0; bi < nbatches; bi++)
         {
             starpu_data_unregister(D_handle[bi]);
+            starpu_data_unregister(index_handle[bi]);
         }
     }
     // Change sizes of far_rank, far_U and far_V if there were false
