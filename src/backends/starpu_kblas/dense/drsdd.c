@@ -42,9 +42,16 @@ void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffer[], void *cl_arg)
     double *V = (double *)STARPU_VECTOR_GET_PTR(buffer[3]);
     int *rank = (int *)STARPU_VECTOR_GET_PTR(buffer[4]);
     int id = starpu_worker_get_id();
+    int pool_size = starpu_combined_worker_get_size();
+    int pool_rank = starpu_combined_worker_get_rank();
+    STARSH_int job_size = (batch_size-1)/pool_size + 1;
+    STARSH_int job_start = job_size * pool_rank;
+    STARSH_int job_end = job_start + job_size;
+    if(job_end > batch_size)
+        job_end = batch_size;
     //printf("CPU BATCH %d\n", batch_size);
     //printf("NB=%d MAXRANK=%d OVERSAMPLE=%d\n", nb, maxrank, oversample);
-    for(int bi = 0; bi < batch_size; ++bi)
+    for(STARSH_int bi = job_start; bi < job_end; ++bi)
     {
         starsh_dense_dlrrsdd(nb, nb, D + bi*nb*nb, nb, U + bi*maxrank*nb, nb,
                 V + bi*maxrank*nb, nb, rank+bi, maxrank, oversample, tol,

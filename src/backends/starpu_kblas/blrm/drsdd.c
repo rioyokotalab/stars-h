@@ -187,11 +187,13 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     };
     struct starpu_codelet codelet_lowrank =
     {
-        //.cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
+        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
         .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 5,
-        .modes = {STARPU_RW, STARPU_W, STARPU_W, STARPU_W, STARPU_W}
+        .modes = {STARPU_RW, STARPU_W, STARPU_W, STARPU_W, STARPU_W},
+        .type = STARPU_SPMD,
+        .max_parallelism = INT_MAX,
     };
     starpu_data_handle_t rank_handle[nbatches];
     starpu_data_handle_t D_handle[nbatches];
