@@ -32,8 +32,14 @@ void starsh_dense_kernel_starpu_kblas_cpu(void *buffers[], void *cl_arg)
     // This works only for equal square tiles
     STARSH_int N = RC->size[0];
     STARSH_int stride = N*N;
-    //printf("BATCH SIZE=%d\n", batch_size);
-    for(STARSH_int ibatch = 0; ibatch < batch_size; ++ibatch)
+    int pool_size = starpu_combined_worker_get_size();
+    int pool_rank = starpu_combined_worker_get_rank();
+    STARSH_int job_size = (batch_size-1)/pool_size + 1;
+    STARSH_int job_start = job_size * pool_rank;
+    STARSH_int job_end = job_start + job_size;
+    if(job_end > batch_size)
+        job_end = batch_size;
+    for(STARSH_int ibatch = job_start; ibatch < job_end; ++ibatch)
     {
         int i = ind[ibatch*2];
         int j = ind[ibatch*2+1];

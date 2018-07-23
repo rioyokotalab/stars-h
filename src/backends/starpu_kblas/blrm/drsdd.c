@@ -142,7 +142,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     int nb = RC->size[0];
     int nsamples = maxrank+oversample;
     // Set size of batch
-    int batch_size = 400;
+    int batch_size = 100;
     // Ceil number of batches
     int nbatches = (nblocks_far-1)/batch_size + 1;
     // Get corresponding sizes and minimum of them
@@ -181,7 +181,9 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     {
         .cpu_funcs = {starsh_dense_kernel_starpu_kblas_cpu},
         .nbuffers = 2,
-        .modes = {STARPU_W, STARPU_R}
+        .modes = {STARPU_W, STARPU_R},
+        .type = STARPU_SPMD,
+        .max_parallelism = INT_MAX,
     };
     struct starpu_codelet codelet_lowrank =
     {
