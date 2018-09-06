@@ -18,10 +18,13 @@
 void starsh_dense_kernel_starpu_kblas_cpu(void *buffers[], void *cl_arg)
 //! STARPU kernel for matrix kernel.
 {
+    //printf("START\n");
     double time0 = omp_get_wtime();
     STARSH_blrf *F;
     STARSH_int batch_size;
     starpu_codelet_unpack_args(cl_arg, &F, &batch_size);
+    //printf("F=%p bs=%d\n", F, batch_size);
+    //printf("START2\n");
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;
     // Shortcuts to information about clusters
@@ -29,8 +32,10 @@ void starsh_dense_kernel_starpu_kblas_cpu(void *buffers[], void *cl_arg)
     void *RD = RC->data, *CD = CC->data;
     double *D = (double *)STARPU_VECTOR_GET_PTR(buffers[0]);
     STARSH_int *ind = (STARSH_int *)STARPU_VECTOR_GET_PTR(buffers[1]);
+    //printf("START3\n");
     // This works only for equal square tiles
     STARSH_int N = RC->size[0];
+    //printf("N=%d\n", N);
     STARSH_int stride = N*N;
     int pool_size = starpu_combined_worker_get_size();
     int pool_rank = starpu_combined_worker_get_rank();
@@ -46,6 +51,7 @@ void starsh_dense_kernel_starpu_kblas_cpu(void *buffers[], void *cl_arg)
         kernel(N, N, RC->pivot+RC->start[i], CC->pivot+CC->start[j],
                 RD, CD, D + ibatch*stride, N);
     }
+    //printf("END\n");
     //printf("FINISH BATCH IN: %f seconds\n", omp_get_wtime()-time0);
 }
 

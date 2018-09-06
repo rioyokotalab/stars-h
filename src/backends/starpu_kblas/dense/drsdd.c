@@ -49,14 +49,11 @@ void starsh_dense_dlrrsdd_starpu_kblas_cpu(void *buffer[], void *cl_arg)
     STARSH_int job_end = job_start + job_size;
     if(job_end > batch_size)
         job_end = batch_size;
-    //printf("CPU BATCH %d\n", batch_size);
-    //printf("NB=%d MAXRANK=%d OVERSAMPLE=%d\n", nb, maxrank, oversample);
     for(STARSH_int bi = job_start; bi < job_end; ++bi)
     {
         starsh_dense_dlrrsdd(nb, nb, D + bi*nb*nb, nb, U + bi*maxrank*nb, nb,
                 V + bi*maxrank*nb, nb, rank+bi, maxrank, oversample, tol,
                 work[id], lwork, iwork[id]);
-        //printf("CPU BATCH %d FINISH WITH RANK=%d\n", batch_size, rank[bi]);
     }
 }
 
@@ -93,6 +90,7 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     // Create copy of D, since kblas_rsvd spoils it
     cublasDcopy(cuhandle, batch_size*nb*nb, D, 1, Dcopy, 1);
     // Run randomized SVD, get left singular vectors and singular values
+    //*
     kblasDrsvd_batch_strided(khandle, nb, nb, mn, D, nb, nb*nb, U, mn, state,
             batch_size);
     cudaMemcpyAsync(work[id], U, mn*batch_size*sizeof(double),
@@ -121,5 +119,6 @@ void starsh_dense_dlrrsdd_starpu_kblas_gpu(void *buffer[], void *cl_arg)
     }
     cudaMemcpyAsync(rank, iwork[id], batch_size*sizeof(int),
             cudaMemcpyHostToDevice, stream);
+    //*/
 }
 

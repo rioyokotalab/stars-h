@@ -191,17 +191,37 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 5,
-        .modes = {STARPU_RW, STARPU_W, STARPU_W, STARPU_W, STARPU_W},
+        .modes = {STARPU_R, STARPU_SCRATCH, STARPU_W, STARPU_W, STARPU_W},
         .type = STARPU_SPMD,
         .max_parallelism = INT_MAX,
     };
+    struct starpu_codelet codelet_lowrank_cpu =
+    {
+        .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas_cpu},
+        .nbuffers = 5,
+        .modes = {STARPU_R, STARPU_SCRATCH, STARPU_W, STARPU_W, STARPU_W},
+        .type = STARPU_SPMD,
+        .max_parallelism = INT_MAX,
+    };
+    struct starpu_codelet codelet_lowrank_gpu =
+    {
+        .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas_gpu},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
+        .nbuffers = 5,
+        .modes = {STARPU_R, STARPU_SCRATCH, STARPU_W, STARPU_W, STARPU_W},
+    };
+    // Select if ONLY cpu or gpu
+    if(getenv("STARSH_KBLAS_CPU"))
+        codelet_lowrank = codelet_lowrank_cpu;
+    else if(getenv("STARSH_KBLAS_GPU"))
+        codelet_lowrank = codelet_lowrank_gpu;
     starpu_data_handle_t rank_handle[nbatches];
     starpu_data_handle_t D_handle[nbatches];
     starpu_data_handle_t Dcopy_handle[nbatches];
     starpu_data_handle_t index_handle[nbatches];
     starpu_data_handle_t U_handle[nbatches];
     starpu_data_handle_t V_handle[nbatches];
-    printf("BATCHSIZE=%d BATCHCOUNT=%d\n", batch_size, nbatches);
+    //printf("BATCHSIZE=%d BATCHCOUNT=%d\n", batch_size, nbatches);
     // Init buffers to store low-rank factors of far-field blocks if needed
     if(nbatches > 0)
     {
@@ -292,12 +312,19 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &wwork, sizeof(wwork),
                 STARPU_VALUE, &lwork, sizeof(lwork),
                 STARPU_VALUE, &wiwork, sizeof(wiwork),
-                STARPU_RW, D_handle[bi],
-                STARPU_W, Dcopy_handle[bi],
+                STARPU_R, D_handle[bi],
+                STARPU_SCRATCH, Dcopy_handle[bi],
                 STARPU_W, U_handle[bi],
                 STARPU_W, V_handle[bi],
                 STARPU_W, rank_handle[bi],
                 0);
+        /*
+        starpu_data_invalidate_submit(rank_handle[bi]);
+        starpu_data_invalidate_submit(D_handle[bi]);
+        starpu_data_invalidate_submit(Dcopy_handle[bi]);
+        starpu_data_invalidate_submit(index_handle[bi]);
+        starpu_data_invalidate_submit(U_handle[bi]);
+        starpu_data_invalidate_submit(V_handle[bi]);
         //*/
     }
     starpu_task_wait_for_all();
@@ -321,7 +348,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     for(bi = 0; bi < nblocks_far; bi++)
     {
         //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        //far_rank[bi] = -1;
+        //far_rank[bi] = 0;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }
