@@ -119,7 +119,6 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
     double time1 = MPI_Wtime();
     info = starsh_blrm_approximate(&M, F, maxrank, tol, onfly);
-    /*
     if(info != 0)
     {
         if(mpi_rank == 0)

@@ -19,7 +19,7 @@
 #include <kblas.h>
 #include "batch_rand.h"
 #include <starpu.h>
-#include <omp.h>
+#include <mpi.h>
 
 static void init_starpu_kblas(void *args)
 {
@@ -95,13 +95,9 @@ static void empty_cpu_func(void *buffer[],  void *cl_arg)
 void starsh_dense_kernel_mpi_starpu_kblas_cpu(void *buffers[], void *cl_arg)
 //! STARPU kernel for matrix kernel.
 {
-    //printf("START\n");
-    double time0 = omp_get_wtime();
     STARSH_blrf *F;
     STARSH_int batch_size;
     starpu_codelet_unpack_args(cl_arg, &F, &batch_size);
-    //printf("F=%p bs=%d\n", F, batch_size);
-    //printf("START2\n");
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;
     // Shortcuts to information about clusters
@@ -109,10 +105,8 @@ void starsh_dense_kernel_mpi_starpu_kblas_cpu(void *buffers[], void *cl_arg)
     void *RD = RC->data, *CD = CC->data;
     double *D = (double *)STARPU_VECTOR_GET_PTR(buffers[0]);
     STARSH_int *ind = (STARSH_int *)STARPU_VECTOR_GET_PTR(buffers[1]);
-    //printf("START3\n");
     // This works only for equal square tiles
     STARSH_int N = RC->size[0];
-    //printf("N=%d\n", N);
     STARSH_int stride = N*N;
     int pool_size = starpu_combined_worker_get_size();
     int pool_rank = starpu_combined_worker_get_rank();
@@ -129,8 +123,6 @@ void starsh_dense_kernel_mpi_starpu_kblas_cpu(void *buffers[], void *cl_arg)
         kernel(N, N, RC->pivot+RC->start[i], CC->pivot+CC->start[j],
                 RD, CD, D + ibatch*stride, N);
     }
-    //printf("END\n");
-    //printf("FINISH BATCH IN: %f seconds\n", omp_get_wtime()-time0);
 }
 
 int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
@@ -146,7 +138,7 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
  * @ingroup blrm
  * */
 {
-    printf("IN STARPU KBLAS MPI\n");
+    double time_start = MPI_Wtime();
     STARSH_blrf *F = format;
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;
@@ -175,6 +167,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
     size_t offset_U = 0, offset_V = 0, offset_D = 0;
     STARSH_int lbi, lbj, bi, bj = 0;
     const int oversample = starsh_params.oversample;
+    // MPI
+    int mpi_size, mpi_rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     // Init CuBLAS and KBLAS handles and temp buffers for all workers (but they
     // are used only in GPU codelets)
     int workers = starpu_worker_get_count();
@@ -299,8 +295,6 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
             array_from_buffer(far_U+lbi, 2, shape, 'd', 'F', alloc_U+offset);
             array_from_buffer(far_V+lbi, 2, shape, 'd', 'F', alloc_V+offset);
         }
-        // START MEASURING TIME
-        double time0 = omp_get_wtime();
         for(lbi = 0; lbi < nbatches_local; ++lbi)
         {
             STARSH_int offset = lbi * batch_size * nb * maxrank;
@@ -328,12 +322,15 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
             starpu_vector_data_register(V_handle+lbi, STARPU_MAIN_RAM,
                     (uintptr_t)(V), V_size, sizeof(*V));
         }
-        //printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    double time0 = MPI_Wtime();
+    if(mpi_rank == 0)
+        printf("REGISTER DATA IN: %f seconds\n", time0-time_start);
     // Work variables
     int info;
     // START MEASURING TIME
-    double time0 = omp_get_wtime();
+    MPI_Barrier(MPI_COMM_WORLD);
     for(lbi = 0; lbi < nbatches_local; ++lbi)
     {
         //printf("RUNNING BATCH=%d\n", bi);
@@ -348,12 +345,71 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
                 STARPU_R, index_handle[lbi],
                 0);
         starpu_data_unregister_submit(index_handle[lbi]);
-        for(int i = 0; i < this_batch_size; ++i)
-            far_rank[i + lbi*this_batch_size] = -1;
     }
-    // ADD APPROXIMATION CODE HERE
     starpu_task_wait_for_all();
-    return 0;
+    MPI_Barrier(MPI_COMM_WORLD);
+    double time1 = MPI_Wtime();
+    if(mpi_rank == 0)
+        printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
+    time0 = time1;
+    STARSH_int nbatches_once = nbatches_local;
+    for(STARSH_int batch_start = 0; batch_start < nbatches_local;
+            batch_start += nbatches_once)
+    {
+        STARSH_int batch_end = batch_start + nbatches_once;
+        if(batch_end > nbatches_local)
+            batch_end = nbatches_local;
+        for(bi = batch_start; bi < batch_end; ++bi)
+        {
+            //printf("RUNNING BATCH=%d\n", bi);
+            STARSH_int this_batch_size = nblocks_far_local - bi*batch_size;
+            if(this_batch_size > batch_size)
+                this_batch_size = batch_size;
+            // Run KBLAS_RSVD
+            //*
+            starpu_task_insert(&codelet_lowrank,
+                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                    STARPU_VALUE, &nb, sizeof(nb),
+                    STARPU_VALUE, &maxrank, sizeof(maxrank),
+                    STARPU_VALUE, &oversample, sizeof(oversample),
+                    STARPU_VALUE, &tol, sizeof(tol),
+                    STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                    STARPU_VALUE, &khandles, sizeof(khandles),
+                    STARPU_VALUE, &kstates, sizeof(kstates),
+                    STARPU_VALUE, &wwork, sizeof(wwork),
+                    STARPU_VALUE, &lwork, sizeof(lwork),
+                    STARPU_VALUE, &wiwork, sizeof(wiwork),
+                    STARPU_R, D_handle[bi],
+                    STARPU_SCRATCH, Dcopy_handle[bi],
+                    STARPU_W, U_handle[bi],
+                    STARPU_W, V_handle[bi],
+                    STARPU_W, rank_handle[bi],
+                    0);
+            starpu_data_unregister_submit(Dcopy_handle[bi]);
+            starpu_task_insert(&codelet_get_data_back_to_cpu,
+                    STARPU_R, U_handle[bi],
+                    0);
+            starpu_task_insert(&codelet_get_data_back_to_cpu,
+                    STARPU_R, V_handle[bi],
+                    0);
+            starpu_task_insert(&codelet_get_data_back_to_cpu,
+                    STARPU_R, rank_handle[bi],
+                    0);
+            starpu_data_unregister_submit(rank_handle[bi]);
+            starpu_data_unregister_submit(D_handle[bi]);
+            starpu_data_unregister_submit(U_handle[bi]);
+            starpu_data_unregister_submit(V_handle[bi]);
+        }
+        starpu_task_wait_for_all();
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    time1 = MPI_Wtime();
+    if(mpi_rank == 0)
+        printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    time0 = time1;
+    if(mpi_rank == 0)
+        printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
+            MPI_Wtime()-time0);
     // Get number of false far-field blocks
     STARSH_int nblocks_false_far_local = 0;
     STARSH_int *false_far_local = NULL;
@@ -374,9 +430,6 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
     STARSH_int nblocks_false_far = 0;
     int int_nblocks_false_far_local = nblocks_false_far_local;
     int *mpi_recvcount, *mpi_offset;
-    int mpi_size, mpi_rank;
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     STARSH_MALLOC(mpi_recvcount, mpi_size);
     STARSH_MALLOC(mpi_offset, mpi_size);
     MPI_Allgather(&int_nblocks_false_far_local, 1, MPI_INT, mpi_recvcount,
@@ -505,8 +558,8 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
             starpu_vector_data_register(D_handle+lbi, STARPU_MAIN_RAM,
                     (uintptr_t)(D), D_size, sizeof(*D));
             starpu_vector_data_register(index_handle+lbi, STARPU_MAIN_RAM,
-                    (uintptr_t)(block_near_local + 2*lbi*batch_size),
-                    2*this_batch_size, sizeof(*block_near));
+                    (uintptr_t)(block_near_local + lbi*batch_size),
+                    this_batch_size, sizeof(*block_near));
         }
         for(lbi = 0; lbi < nbatches_local; ++lbi)
         {
@@ -575,6 +628,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
     // buffers
     starpu_execute_on_each_worker(deinit_starpu_kblas, args_gpu, STARPU_CUDA);
     starpu_execute_on_each_worker(deinit_starpu_cpu, args_cpu, STARPU_CPU);
+    MPI_Barrier(MPI_COMM_WORLD);
+    time1 = MPI_Wtime();
+    if(mpi_rank == 0)
+        printf("ADDITION IN %f seconds\n", time1-time_start);
     return starsh_blrm_new_mpi(matrix, F, far_rank, far_U, far_V, onfly,
             near_D, alloc_U, alloc_V, alloc_D, '1');
 }

@@ -356,17 +356,6 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
     time1 = omp_get_wtime();
     printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
     time0 = time1;
-    /*
-    for(bi = 0; bi < nbatches; ++bi)
-    {
-        starpu_data_unregister(rank_handle[bi]);
-        starpu_data_unregister(D_handle[bi]);
-        starpu_data_unregister(Dcopy_handle[bi]);
-        starpu_data_unregister(index_handle[bi]);
-        starpu_data_unregister(U_handle[bi]);
-        starpu_data_unregister(V_handle[bi]);
-    }
-    */
     printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
             omp_get_wtime()-time0);
     // Get number of false far-field blocks

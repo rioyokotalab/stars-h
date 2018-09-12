@@ -146,8 +146,6 @@ double starsh_blrm__dfe_mpi(STARSH_blrm *matrix)
     MPI_Allreduce(&value, &mpi_value, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    if(mpi_rank == 0)
-        printf("MPI_VALUE[0]=%f MPI_VALUE[1]=%f\n", mpi_value[0], mpi_value[1]);
     return sqrt(mpi_value[0]/mpi_value[1]);
 }
 
