@@ -119,6 +119,7 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
     double time1 = MPI_Wtime();
     info = starsh_blrm_approximate(&M, F, maxrank, tol, onfly);
+    /*
     if(info != 0)
     {
         if(mpi_rank == 0)
@@ -157,6 +158,7 @@ int main(int argc, char **argv)
         MPI_Finalize();
         return 1;
     }
+    //*/
     // Measure time for 10 BLRM matvecs and for 10 BLRM TLR matvecs
     /* Not performed due to no matvec yet with STARPU
     double *x, *y, *y_tlr;

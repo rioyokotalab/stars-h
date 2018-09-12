@@ -36,6 +36,8 @@ enum STARSH_BACKEND
     //!< StarPU+KBLAS (without MPI)
     STARSH_BACKEND_STARPU_CUDA = 7,
     //!< StarPU+CUDA (without MPI)
+    STARSH_BACKEND_MPI_STARPU_KBLAS = 8,
+    //!< MPI+StarPU+KBLAS
 };
 
 //! Enum for low-rank engine (approximation technique)

@@ -50,7 +50,7 @@ if(MPI)
     list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_mpi>)
 endif()
 
-# List MPI sources for docs or build
+# List MPI+STARPU sources for docs or build
 if((MPI AND STARPU) OR DOCS STREQUAL "FULL")
     add_subdirectory("mpi_starpu")
 endif()
@@ -58,6 +58,16 @@ endif()
 # Add MPI+StarPU backend
 if(MPI AND STARPU)
     list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_mpi_starpu>)
+endif()
+
+# List MPI+STARPU+KBLAS sources for docs or build
+if((MPI AND STARPU AND KBLAS) OR DOCS STREQUAL "FULL")
+    add_subdirectory("mpi_starpu_kblas")
+endif()
+
+# Add MPI+StarPU+KBLAS backend
+if(MPI AND STARPU AND KBLAS)
+    list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_mpi_starpu_kblas>)
 endif()
 
 # Move all selected backends to parent directory
