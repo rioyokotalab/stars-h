@@ -41,12 +41,12 @@ endif(OPENMP)
 if(STARPU)
     target_link_libraries(starsh PUBLIC ${STARPU_LIBRARIES})
     if(KBLAS)
-        target_link_libraries(starsh PUBLIC cudart cublas curand stdc++
-            kblas-gpu ${MAGMA_LIBRARIES})
+        target_link_libraries(starsh PUBLIC cublas_static cudart_static
+            culibos stdc++ kblas-gpu -l:libmagma.a dl rt)
     endif(KBLAS)
     if(CUDA)
-        target_link_libraries(starsh PUBLIC cudart cublas curand cusolver
-            stdc++)
+        target_link_libraries(starsh PUBLIC cublas_static cudart_static
+            cusolver_static curand_static culibos stdc++ dl rt)
     endif(CUDA)
 endif(STARPU)
 if(GSL_FOUND)
