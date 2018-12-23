@@ -42,7 +42,7 @@ if(STARPU)
     target_link_libraries(starsh PUBLIC ${STARPU_LIBRARIES})
     if(KBLAS)
         target_link_libraries(starsh PUBLIC cublas_static cudart_static
-            culibos stdc++ kblas-gpu -l:libmagma.a dl rt)
+            culibos cusparse stdc++ kblas-gpu -l:libmagma.a dl rt)
     endif(KBLAS)
     if(CUDA)
         target_link_libraries(starsh PUBLIC cublas_static cudart_static

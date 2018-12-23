@@ -579,7 +579,7 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
         starsh_blrf_free(F2);
     }
     // Compute near-field blocks if needed
-    if(onfly == 0 && new_nblocks_near > 0)
+    if(onfly == 0 && new_nblocks_near_local > 0)
     {
         STARSH_MALLOC(near_D, new_nblocks_near_local);
         size_t size_D = new_nblocks_near_local * nb * nb;
