@@ -19,7 +19,7 @@ add_subdirectory("dense")
 
 # If compilation is requried
 if(STARPU)
-    add_library(backends_starpu_kblas OBJECT ${SRC})
+    add_library(backends_starpu_kblas2 OBJECT ${SRC})
 endif()
 
 # Put doxygen input to parent scope
