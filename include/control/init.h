@@ -177,8 +177,8 @@ static STARSH_blrm_approximate *(dlr_starpu_mpi_kblas[LRENGINE_NUM]) =
 {
     #if defined(STARPU) && defined(MPI) && defined(KBLAS)
     starsh_blrm__dsdd_mpi_starpu, starsh_blrm__dsdd_mpi_starpu,
-    starsh_blrm__dqp3_mpi_starpu, starsh_blrm__drsdd_mpi_starpu_kblas,
-    starsh_blrm__drsdd_mpi_starpu_kblas
+    starsh_blrm__dqp3_mpi_starpu, starsh_blrm__drsdd_mpi_starpu_kblas2,
+    starsh_blrm__drsdd_mpi_starpu_kblas2
     #endif
 };
 

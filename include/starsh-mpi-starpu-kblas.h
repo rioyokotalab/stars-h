@@ -30,6 +30,8 @@
 //        int maxrank, double tol, int onfly);
 int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly);
+int starsh_blrm__drsdd_mpi_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
+        int maxrank, double tol, int onfly);
 //int starsh_blrm__dqp3_mpi_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
 //        int maxrank, double tol, int onfly);
 //int starsh_blrm__dna_mpi_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
