@@ -20,7 +20,7 @@ void starsh_dense_kernel_starpu_kblas2_cpu(void *buffers[], void *cl_arg)
 {
     double time0 = omp_get_wtime();
     STARSH_blrf *F;
-    STARSH_int batch_size;
+    int batch_size;
     starpu_codelet_unpack_args(cl_arg, &F, &batch_size);
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;

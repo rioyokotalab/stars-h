@@ -31,9 +31,11 @@ static void init_starpu_kblas(void *args)
     int **iwork;
     starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles,
             &kblas_states, &work, &iwork, &nb, &nsamples, &maxbatch);
+    printf("KBLAS2 GPU init after unpack_args\n");
     int id = starpu_worker_get_id();
     cublasStatus_t status;
     kblasCreate(&kblas_handles[id]);
+    /*
     kblasSetStream(kblas_handles[id], stream);
     kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, maxbatch);
     kblasAllocateWorkspace(kblas_handles[id]);
@@ -42,6 +44,7 @@ static void init_starpu_kblas(void *args)
     work[id] = malloc(nsamples*maxbatch*sizeof(double));
     iwork[id] = malloc(maxbatch*sizeof(int));
     cudaStreamSynchronize(stream);
+    */
 }
 
 static void init_starpu_cpu(void *args)
@@ -177,6 +180,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
             0);
     starpu_execute_on_each_worker(init_starpu_kblas, args_gpu, STARPU_CUDA);
     starpu_execute_on_each_worker(init_starpu_cpu, args_cpu, STARPU_CPU);
+    printf("KBLAS2 finish init\n");
     // Init codelet structs and handles
     struct starpu_codelet codelet_kernel =
     {
@@ -233,7 +237,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
             STARSH_int offset = bi * batch_size * nb * maxrank;
             double *U = alloc_U + offset;
             double *V = alloc_V + offset;
-            STARSH_int this_batch_size = nblocks_far - bi*batch_size;
+            int this_batch_size = nblocks_far - bi*batch_size;
             if(this_batch_size > batch_size)
                 this_batch_size = batch_size;
             STARSH_int D_size = this_batch_size * nb * nb;
@@ -267,7 +271,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     for(bi = 0; bi < nbatches; ++bi)
     {
         //printf("RUNNING BATCH=%d\n", bi);
-        STARSH_int this_batch_size = nblocks_far - bi*batch_size;
+        int this_batch_size = nblocks_far - bi*batch_size;
         if(this_batch_size > batch_size)
             this_batch_size = batch_size;
         // Generate matrix
@@ -293,10 +297,11 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         for(bi = batch_start; bi < batch_end; ++bi)
         {
             //printf("RUNNING BATCH=%d\n", bi);
-            STARSH_int this_batch_size = nblocks_far - bi*batch_size;
+            int this_batch_size = nblocks_far - bi*batch_size;
             if(this_batch_size > batch_size)
                 this_batch_size = batch_size;
             // Run KBLAS_RSVD
+            /*
             starpu_task_insert(&codelet_lowrank,
                     STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
                     STARPU_VALUE, &nb, sizeof(nb),
@@ -315,6 +320,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
                     STARPU_W, V_handle[bi],
                     STARPU_W, S_handle[bi],
                     0);
+            /*
             starpu_task_insert(&codelet_getrank,
                     STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
                     STARPU_VALUE, &nb, sizeof(nb),
@@ -326,6 +332,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
                     STARPU_R, S_handle[bi],
                     STARPU_W, rank_handle[bi],
                     0);
+            */
             starpu_data_unregister_submit(D_handle[bi]);
             starpu_data_unregister_submit(Dcopy_handle[bi]);
             starpu_data_unregister_submit(rank_handle[bi]);
@@ -430,7 +437,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         }
         for(bi = 0; bi < nbatches; ++bi)
         {
-            STARSH_int this_batch_size = new_nblocks_near - bi*batch_size;
+            int this_batch_size = new_nblocks_near - bi*batch_size;
             if(this_batch_size > batch_size)
                 this_batch_size = batch_size;
             STARSH_int D_size = this_batch_size * nb * nb;
@@ -443,7 +450,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         }
         for(bi = 0; bi < nbatches; ++bi)
         {
-            STARSH_int this_batch_size = new_nblocks_near - bi*batch_size;
+            int this_batch_size = new_nblocks_near - bi*batch_size;
             if(this_batch_size > batch_size)
                 this_batch_size = batch_size;
             // Generate matrix
