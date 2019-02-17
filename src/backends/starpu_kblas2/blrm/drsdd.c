@@ -35,7 +35,6 @@ static void init_starpu_kblas(void *args)
     int id = starpu_worker_get_id();
     cublasStatus_t status;
     kblasCreate(&kblas_handles[id]);
-    /*
     kblasSetStream(kblas_handles[id], stream);
     kblasDrsvd_batch_wsquery(kblas_handles[id], nb, nb, nsamples, maxbatch);
     kblasAllocateWorkspace(kblas_handles[id]);
@@ -44,7 +43,6 @@ static void init_starpu_kblas(void *args)
     work[id] = malloc(nsamples*maxbatch*sizeof(double));
     iwork[id] = malloc(maxbatch*sizeof(int));
     cudaStreamSynchronize(stream);
-    */
 }
 
 static void init_starpu_cpu(void *args)
@@ -195,7 +193,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas2_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 5,
-        .modes = {STARPU_R, STARPU_SCRATCH, STARPU_W, STARPU_W, STARPU_W},
+        .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_W},
     };
     struct starpu_codelet codelet_getrank =
     {
@@ -287,64 +285,58 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     double time1 = omp_get_wtime();
     printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
     time0 = time1;
-    STARSH_int nbatches_once = nbatches;
-    for(STARSH_int batch_start = 0; batch_start < nbatches;
-            batch_start += nbatches_once)
+    for(bi = 0; bi < nbatches; ++bi)
     {
-        STARSH_int batch_end = batch_start + nbatches_once;
-        if(batch_end > nbatches)
-            batch_end = nbatches;
-        for(bi = batch_start; bi < batch_end; ++bi)
-        {
-            //printf("RUNNING BATCH=%d\n", bi);
-            int this_batch_size = nblocks_far - bi*batch_size;
-            if(this_batch_size > batch_size)
-                this_batch_size = batch_size;
-            // Run KBLAS_RSVD
-            /*
-            starpu_task_insert(&codelet_lowrank,
-                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
-                    STARPU_VALUE, &nb, sizeof(nb),
-                    STARPU_VALUE, &maxrank, sizeof(maxrank),
-                    STARPU_VALUE, &oversample, sizeof(oversample),
-                    STARPU_VALUE, &tol, sizeof(tol),
-                    STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                    STARPU_VALUE, &khandles, sizeof(khandles),
-                    STARPU_VALUE, &kstates, sizeof(kstates),
-                    STARPU_VALUE, &wwork, sizeof(wwork),
-                    STARPU_VALUE, &lwork, sizeof(lwork),
-                    STARPU_VALUE, &wiwork, sizeof(wiwork),
-                    STARPU_R, D_handle[bi],
-                    STARPU_SCRATCH, Dcopy_handle[bi],
-                    STARPU_W, U_handle[bi],
-                    STARPU_W, V_handle[bi],
-                    STARPU_W, S_handle[bi],
-                    0);
-            /*
-            starpu_task_insert(&codelet_getrank,
-                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
-                    STARPU_VALUE, &nb, sizeof(nb),
-                    STARPU_VALUE, &maxrank, sizeof(maxrank),
-                    STARPU_VALUE, &oversample, sizeof(oversample),
-                    STARPU_VALUE, &tol, sizeof(tol),
-                    STARPU_R, U_handle[bi],
-                    STARPU_R, V_handle[bi],
-                    STARPU_R, S_handle[bi],
-                    STARPU_W, rank_handle[bi],
-                    0);
-            */
-            starpu_data_unregister_submit(D_handle[bi]);
-            starpu_data_unregister_submit(Dcopy_handle[bi]);
-            starpu_data_unregister_submit(rank_handle[bi]);
-            starpu_data_unregister_submit(S_handle[bi]);
-            starpu_data_unregister_submit(U_handle[bi]);
-            starpu_data_unregister_submit(V_handle[bi]);
-        }
-        starpu_task_wait_for_all();
+        //printf("RUNNING BATCH=%d\n", bi);
+        int this_batch_size = nblocks_far - bi*batch_size;
+        if(this_batch_size > batch_size)
+            this_batch_size = batch_size;
+        // Run KBLAS_RSVD
+        starpu_task_insert(&codelet_lowrank,
+                STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                STARPU_VALUE, &nb, sizeof(nb),
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &oversample, sizeof(oversample),
+                STARPU_VALUE, &tol, sizeof(tol),
+                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                STARPU_VALUE, &khandles, sizeof(khandles),
+                STARPU_VALUE, &kstates, sizeof(kstates),
+                STARPU_VALUE, &wwork, sizeof(wwork),
+                STARPU_VALUE, &lwork, sizeof(lwork),
+                STARPU_VALUE, &wiwork, sizeof(wiwork),
+                STARPU_R, D_handle[bi],
+                STARPU_W, Dcopy_handle[bi],
+                STARPU_W, U_handle[bi],
+                STARPU_W, V_handle[bi],
+                STARPU_W, S_handle[bi],
+                0);
+        starpu_task_insert(&codelet_getrank,
+                STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                STARPU_VALUE, &nb, sizeof(nb),
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &oversample, sizeof(oversample),
+                STARPU_VALUE, &tol, sizeof(tol),
+                STARPU_R, U_handle[bi],
+                STARPU_R, V_handle[bi],
+                STARPU_R, S_handle[bi],
+                STARPU_W, rank_handle[bi],
+                0);
     }
+    time1 = omp_get_wtime();
+    printf("SUBMIT IN: %f seconds\n", time1-time0);
+    starpu_task_wait_for_all();
     time1 = omp_get_wtime();
     printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
     time0 = time1;
+    for(bi = 0; bi < nbatches; ++bi)
+    {
+        starpu_data_unregister(rank_handle[bi]);
+        starpu_data_unregister(U_handle[bi]);
+        starpu_data_unregister(V_handle[bi]);
+        starpu_data_unregister(D_handle[bi]);
+        starpu_data_unregister(Dcopy_handle[bi]);
+        starpu_data_unregister(S_handle[bi]);
+    }
     printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
             omp_get_wtime()-time0);
     // Get number of false far-field blocks
@@ -353,7 +345,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     for(bi = 0; bi < nblocks_far; bi++)
     {
         //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        //far_rank[bi] = 0;
+        //far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }

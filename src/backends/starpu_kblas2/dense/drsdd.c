@@ -56,14 +56,12 @@ void starsh_dense_dlrrsdd_starpu_kblas2_gpu(void *buffer[], void *cl_arg)
             batch_size);
     double one = 1.0;
     double zero = 0.0;
-    /*
     for(int bi = 0; bi < batch_size; ++bi)
         cublasDcopy(cuhandle, nb*maxrank, D + bi*nb*nb, 1,
                 U + bi*maxrank*nb, 1);
     kblasDgemm_batch_strided(khandle, KBLAS_Trans, KBLAS_NoTrans, nb, maxrank,
             nb, one, Dcopy, nb, nb*nb, D, nb, nb*nb, zero, V, nb, maxrank*nb,
             batch_size);
-    */
 }
 
 void starsh_dense_dlrrsdd_starpu_kblas2_getrank(void *buffer[], void *cl_arg)
