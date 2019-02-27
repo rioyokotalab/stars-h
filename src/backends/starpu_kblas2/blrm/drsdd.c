@@ -144,7 +144,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     int nb = RC->size[0];
     int nsamples = maxrank+oversample;
     // Set size of batch
-    int batch_size = 100;
+    int batch_size = 200;
     // Ceil number of batches
     int nbatches = (nblocks_far-1)/batch_size + 1;
     // Get corresponding sizes and minimum of them
@@ -185,23 +185,25 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         .cpu_funcs = {starsh_dense_kernel_starpu_kblas2_cpu},
         .nbuffers = 2,
         .modes = {STARPU_W, STARPU_R},
-        .type = STARPU_SPMD,
-        .max_parallelism = INT_MAX,
+        //.type = STARPU_SPMD,
+        //.max_parallelism = INT_MAX,
     };
     struct starpu_codelet codelet_lowrank =
     {
         .cuda_funcs = {starsh_dense_dlrrsdd_starpu_kblas2_gpu},
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 5,
-        .modes = {STARPU_R, STARPU_W, STARPU_W, STARPU_W, STARPU_W},
+        //.nbuffers = 1,
+        .modes = {STARPU_R, STARPU_SCRATCH, STARPU_W, STARPU_W, STARPU_W},
+        //.modes = {STARPU_R},
     };
     struct starpu_codelet codelet_getrank =
     {
         .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas2_getrank},
         .nbuffers = 4,
         .modes = {STARPU_R, STARPU_R, STARPU_R, STARPU_W},
-        .type = STARPU_SPMD,
-        .max_parallelism = INT_MAX,
+        //.type = STARPU_SPMD,
+        //.max_parallelism = INT_MAX,
     };
     starpu_data_handle_t D_handle[nbatches];
     starpu_data_handle_t Dcopy_handle[nbatches];
@@ -282,6 +284,8 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         starpu_data_unregister_submit(index_handle[bi]);
     }
     starpu_task_wait_for_all();
+    starpu_profiling_init();
+    starpu_profiling_bus_helper_display_summary();
     double time1 = omp_get_wtime();
     printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
     time0 = time1;
@@ -305,7 +309,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_VALUE, &lwork, sizeof(lwork),
                 STARPU_VALUE, &wiwork, sizeof(wiwork),
                 STARPU_R, D_handle[bi],
-                STARPU_W, Dcopy_handle[bi],
+                STARPU_SCRATCH, Dcopy_handle[bi],
                 STARPU_W, U_handle[bi],
                 STARPU_W, V_handle[bi],
                 STARPU_W, S_handle[bi],
@@ -327,16 +331,18 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     starpu_task_wait_for_all();
     time1 = omp_get_wtime();
     printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    starpu_profiling_bus_helper_display_summary();
+    time0 = omp_get_wtime();
     for(bi = 0; bi < nbatches; ++bi)
     {
-        starpu_data_unregister(rank_handle[bi]);
-        starpu_data_unregister(U_handle[bi]);
-        starpu_data_unregister(V_handle[bi]);
-        starpu_data_unregister(D_handle[bi]);
-        starpu_data_unregister(Dcopy_handle[bi]);
-        starpu_data_unregister(S_handle[bi]);
+        starpu_data_unregister_submit(rank_handle[bi]);
+        starpu_data_unregister_submit(U_handle[bi]);
+        starpu_data_unregister_submit(V_handle[bi]);
+        starpu_data_unregister_submit(D_handle[bi]);
+        starpu_data_unregister_submit(Dcopy_handle[bi]);
+        starpu_data_unregister_submit(S_handle[bi]);
     }
+    starpu_task_wait_for_all();
     printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
             omp_get_wtime()-time0);
     // Get number of false far-field blocks

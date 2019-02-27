@@ -18,7 +18,7 @@
 void starsh_dense_kernel_starpu_kblas2_cpu(void *buffers[], void *cl_arg)
 //! STARPU kernel for matrix kernel.
 {
-    double time0 = omp_get_wtime();
+    //double time0 = omp_get_wtime();
     STARSH_blrf *F;
     int batch_size;
     starpu_codelet_unpack_args(cl_arg, &F, &batch_size);
