@@ -37,7 +37,7 @@ void starsh_dense_dlrrsdd_starpu_kblas2_gpu(void *buffer[], void *cl_arg)
             &tol, &cublas_handles, &kblas_handles, &kblas_states, &work,
             &lwork, &iwork);
     double *D = (double *)STARPU_VECTOR_GET_PTR(buffer[0]);
-    double *Dcopy = (double *)STARPU_VECTOR_GET_PTR(buffer[1]);
+    double *W = (double *)STARPU_VECTOR_GET_PTR(buffer[1]);
     double *U = (double *)STARPU_VECTOR_GET_PTR(buffer[2]);
     double *V = (double *)STARPU_VECTOR_GET_PTR(buffer[3]);
     double *S = (double *)STARPU_VECTOR_GET_PTR(buffer[4]);
@@ -49,19 +49,18 @@ void starsh_dense_dlrrsdd_starpu_kblas2_gpu(void *buffer[], void *cl_arg)
     cublasHandle_t cuhandle = cublas_handles[id];
     kblasRandState_t state = kblas_states[id];
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    // Create copy of D, since kblas_rsvd spoils it
-    cublasDcopy(cuhandle, batch_size*nb*nb, D, 1, Dcopy, 1);
+    // Create copy of first mn columns of D, since kblas_rsvd spoils it
+    cublasDcopy(cuhandle, batch_size*nb*nb, D, 1, W, 1);
     // Run randomized SVD, get left singular vectors and singular values
-    kblasDrsvd_batch_strided(khandle, nb, nb, mn, D, nb, nb*nb, S, mn, state,
+    kblasDrsvd_batch_strided(khandle, nb, nb, mn, W, nb, nb*nb, S, mn, state,
             batch_size);
     double one = 1.0;
     double zero = 0.0;
     for(int bi = 0; bi < batch_size; ++bi)
-        cublasDcopy(cuhandle, nb*maxrank, D + bi*nb*nb, 1,
-                U + bi*maxrank*nb, 1);
+        cublasDcopy(cuhandle, nb*maxrank, W+bi*nb*nb, 1, U+bi*maxrank*nb, 1);
     kblasDgemm_batch_strided(khandle, KBLAS_Trans, KBLAS_NoTrans, nb, maxrank,
-            nb, one, Dcopy, nb, nb*nb, D, nb, nb*nb, zero, V, nb, maxrank*nb,
-            batch_size);
+            nb, one, D, nb, nb*nb, U, nb, nb*maxrank, zero, V, nb,
+            maxrank*nb, batch_size);
 }
 
 void starsh_dense_dlrrsdd_starpu_kblas2_getrank(void *buffer[], void *cl_arg)
