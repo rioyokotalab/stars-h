@@ -103,6 +103,7 @@ int main(int argc, char **argv)
     // Deinit StarPU
     starpu_shutdown();
     // Measure approximation error
+    /*
     time1 = omp_get_wtime();
     double rel_err = starsh_blrm__dfe_omp(M);
     time1 = omp_get_wtime()-time1;
@@ -113,6 +114,7 @@ int main(int argc, char **argv)
         printf("Resulting relative error is too big\n");
         return 0;
     }
+    */
     // Measure time for 10 BLRM matvecs and for 10 BLRM TLR matvecs
     /* Not performed due to no matvec yet with STARPU
     double *x, *y;

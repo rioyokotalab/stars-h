@@ -31,7 +31,7 @@ static void init_starpu_kblas(void *args)
     int **iwork;
     starpu_codelet_unpack_args(args, &cublas_handles, &kblas_handles,
             &kblas_states, &work, &iwork, &nb, &nsamples, &maxbatch);
-    printf("KBLAS2 GPU init after unpack_args\n");
+    //printf("KBLAS2 GPU init after unpack_args\n");
     int id = starpu_worker_get_id();
     cublasStatus_t status;
     kblasCreate(&kblas_handles[id]);
@@ -88,6 +88,10 @@ static void deinit_starpu_cpu(void *args)
     free(iwork[id]);
 }
 
+static void empty_codelet(void *buffer[], void *cl_arg)
+{
+}
+
 int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly)
 //! Approximate each tile by randomized SVD.
@@ -120,7 +124,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     // Places to store low-rank factors, dense blocks and ranks
     Array **far_U = NULL, **far_V = NULL, **near_D = NULL;
     int *far_rank = NULL;
-    double *alloc_U = NULL, *alloc_V = NULL, *alloc_D = NULL;
+    double *alloc_U = NULL, *alloc_V = NULL, *alloc_D = NULL, *alloc_S = NULL;
     STARSH_int bi, bj = 0;
     const int oversample = starsh_params.oversample;
     // Init CuBLAS and KBLAS handles and temp buffers for all workers (but they
@@ -143,8 +147,16 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     // This works only for TLR with equal tiles
     int nb = RC->size[0];
     int nsamples = maxrank+oversample;
+    // Find out if measure only CPU->GPU, GPU->CPU or CPU->GPU->CPU data
+    // transfer
+    char *env_var = getenv("STARSH_KBLAS_TRANSFER");
+    int transfer = 0;
+    if(!strcmp(env_var, "CPUGPU"))
+        transfer = 1;
+    else if(!strcmp(env_var, "GPUCPU"))
+        transfer = 2;
     // Set size of batch
-    char *env_var = getenv("STARSH_KBLAS_BATCH");
+    env_var = getenv("STARSH_KBLAS_BATCH");
     int batch_size = 100;
     if(env_var)
         batch_size = atoi(env_var);
@@ -182,15 +194,15 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
             0);
     starpu_execute_on_each_worker(init_starpu_kblas, args_gpu, STARPU_CUDA);
     starpu_execute_on_each_worker(init_starpu_cpu, args_cpu, STARPU_CPU);
-    printf("KBLAS2 finish init\n");
+    //printf("KBLAS2 finish init\n");
     // Init codelet structs and handles
     struct starpu_codelet codelet_kernel =
     {
         .cpu_funcs = {starsh_dense_kernel_starpu_kblas2_cpu},
         .nbuffers = 2,
         .modes = {STARPU_W, STARPU_R},
-        //.type = STARPU_SPMD,
-        //.max_parallelism = INT_MAX,
+        .type = STARPU_SPMD,
+        .max_parallelism = INT_MAX,
     };
     struct starpu_codelet codelet_lowrank =
     {
@@ -199,13 +211,28 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         .nbuffers = 5,
         .modes = {STARPU_R, STARPU_SCRATCH, STARPU_W, STARPU_W, STARPU_W},
     };
+    struct starpu_codelet codelet_fake_input =
+    {
+        .cuda_funcs = {empty_codelet},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
+        .nbuffers = 3,
+        .modes = {STARPU_W, STARPU_W, STARPU_W},
+    };
     struct starpu_codelet codelet_getrank =
     {
         .cpu_funcs = {starsh_dense_dlrrsdd_starpu_kblas2_getrank},
         .nbuffers = 4,
         .modes = {STARPU_R, STARPU_R, STARPU_R, STARPU_W},
-        //.type = STARPU_SPMD,
-        //.max_parallelism = INT_MAX,
+        .type = STARPU_SPMD,
+        .max_parallelism = INT_MAX,
+    };
+    struct starpu_codelet codelet_fake_output =
+    {
+        .cpu_funcs = {empty_codelet},
+        .nbuffers = 1,
+        .modes = {STARPU_W},
+        .type = STARPU_SPMD,
+        .max_parallelism = INT_MAX,
     };
     starpu_data_handle_t D_handle[nbatches];
     starpu_data_handle_t index_handle[nbatches];
@@ -218,17 +245,21 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     // Init buffers to store low-rank factors of far-field blocks if needed
     if(nbatches > 0)
     {
+        double time0 = omp_get_wtime();
         STARSH_MALLOC(far_U, nblocks_far);
         STARSH_MALLOC(far_V, nblocks_far);
         STARSH_MALLOC(far_rank, nblocks_far);
         size_t size_U = nblocks_far * nb * maxrank;
         size_t size_V = size_U;
         size_t size_D = nblocks_far * nb * nb;
+        size_t size_S = nblocks_far * mn;
         STARSH_MALLOC(alloc_U, size_U);
         STARSH_MALLOC(alloc_V, size_V);
         starpu_memory_pin(alloc_U, size_U*sizeof(double));
         starpu_memory_pin(alloc_V, size_V*sizeof(double));
         starpu_malloc(&alloc_D, size_D*sizeof(double));
+        starpu_malloc(&alloc_S, size_S*sizeof(double));
+        printf("KBLAS2: pin memory in %e seconds\n", omp_get_wtime()-time0);
         int shape[] = {nb, maxrank};
         for(bi = 0; bi < nblocks_far; ++bi)
         {
@@ -237,7 +268,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
             array_from_buffer(far_V+bi, 2, shape, 'd', 'F', alloc_V+offset);
         }
         // START MEASURING TIME
-        double time0 = omp_get_wtime();
+        time0 = omp_get_wtime();
         for(bi = 0; bi < nbatches; ++bi)
         {
             STARSH_int offset = bi * batch_size * nb * maxrank;
@@ -304,24 +335,52 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         if(this_batch_size > batch_size)
             this_batch_size = batch_size;
         // Run KBLAS_RSVD
-        starpu_task_insert(&codelet_lowrank,
-                STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
-                STARPU_VALUE, &nb, sizeof(nb),
-                STARPU_VALUE, &maxrank, sizeof(maxrank),
-                STARPU_VALUE, &oversample, sizeof(oversample),
-                STARPU_VALUE, &tol, sizeof(tol),
-                STARPU_VALUE, &cuhandles, sizeof(cuhandles),
-                STARPU_VALUE, &khandles, sizeof(khandles),
-                STARPU_VALUE, &kstates, sizeof(kstates),
-                STARPU_VALUE, &wwork, sizeof(wwork),
-                STARPU_VALUE, &lwork, sizeof(lwork),
-                STARPU_VALUE, &wiwork, sizeof(wiwork),
-                STARPU_R, D_handle[bi],
-                STARPU_SCRATCH, Dcopy_handle[bi],
-                STARPU_W, U_handle[bi],
-                STARPU_W, V_handle[bi],
-                STARPU_W, S_handle[bi],
-                0);
+        // If INPUT transfer is needed
+        if(transfer == 1 || transfer == 0)
+        {
+            starpu_task_insert(&codelet_lowrank,
+                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                    STARPU_VALUE, &nb, sizeof(nb),
+                    STARPU_VALUE, &maxrank, sizeof(maxrank),
+                    STARPU_VALUE, &oversample, sizeof(oversample),
+                    STARPU_VALUE, &tol, sizeof(tol),
+                    STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                    STARPU_VALUE, &khandles, sizeof(khandles),
+                    STARPU_VALUE, &kstates, sizeof(kstates),
+                    STARPU_VALUE, &wwork, sizeof(wwork),
+                    STARPU_VALUE, &lwork, sizeof(lwork),
+                    STARPU_VALUE, &wiwork, sizeof(wiwork),
+                    STARPU_R, D_handle[bi],
+                    STARPU_SCRATCH, Dcopy_handle[bi],
+                    STARPU_W, U_handle[bi],
+                    STARPU_W, V_handle[bi],
+                    STARPU_W, S_handle[bi],
+                    0);
+        }
+        else
+        {
+            starpu_task_insert(&codelet_fake_input,
+                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                    STARPU_VALUE, &nb, sizeof(nb),
+                    STARPU_VALUE, &maxrank, sizeof(maxrank),
+                    STARPU_VALUE, &oversample, sizeof(oversample),
+                    STARPU_VALUE, &tol, sizeof(tol),
+                    STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                    STARPU_VALUE, &khandles, sizeof(khandles),
+                    STARPU_VALUE, &kstates, sizeof(kstates),
+                    STARPU_VALUE, &wwork, sizeof(wwork),
+                    STARPU_VALUE, &lwork, sizeof(lwork),
+                    STARPU_VALUE, &wiwork, sizeof(wiwork),
+                    STARPU_W, U_handle[bi],
+                    STARPU_W, V_handle[bi],
+                    STARPU_W, S_handle[bi],
+                    0);
+        }
+        starpu_data_unregister_submit(D_handle[bi]);
+        starpu_data_unregister_submit(Dcopy_handle[bi]);
+        // If OUTPUT transfer is needed
+        if(transfer == 2 || transfer == 0)
+        {
         starpu_task_insert(&codelet_getrank,
                 STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
                 STARPU_VALUE, &nb, sizeof(nb),
@@ -333,12 +392,22 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
                 STARPU_R, S_handle[bi],
                 STARPU_W, rank_handle[bi],
                 0);
+        }
+        else
+        {
+            starpu_task_insert(&codelet_fake_output,
+                STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                STARPU_VALUE, &nb, sizeof(nb),
+                STARPU_VALUE, &maxrank, sizeof(maxrank),
+                STARPU_VALUE, &oversample, sizeof(oversample),
+                STARPU_VALUE, &tol, sizeof(tol),
+                STARPU_W, rank_handle[bi],
+                0);
+        }
         starpu_data_unregister_submit(U_handle[bi]);
         starpu_data_unregister_submit(V_handle[bi]);
-        starpu_data_unregister_submit(D_handle[bi]);
-        starpu_data_unregister_submit(Dcopy_handle[bi]);
-        starpu_data_unregister_submit(rank_handle[bi]);
         starpu_data_unregister_submit(S_handle[bi]);
+        starpu_data_unregister_submit(rank_handle[bi]);
     }
     time1 = omp_get_wtime();
     printf("SUBMIT IN: %f seconds\n", time1-time0);
@@ -358,6 +427,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         starpu_memory_unpin(alloc_U, size_U*sizeof(double));
         starpu_memory_unpin(alloc_V, size_V*sizeof(double));
         starpu_free(alloc_D);
+        starpu_free(alloc_S);
     }
     printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
             omp_get_wtime()-time0);
