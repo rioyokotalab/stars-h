@@ -155,6 +155,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         transfer = 1;
     else if(!strcmp(env_var, "GPUCPU"))
         transfer = 2;
+    printf("KBLAS2: transfer=%d\n", transfer);
     // Set size of batch
     env_var = getenv("STARSH_KBLAS_BATCH");
     int batch_size = 100;
@@ -217,6 +218,13 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 3,
         .modes = {STARPU_W, STARPU_W, STARPU_W},
+    };
+    struct starpu_codelet codelet_fake_input2 =
+    {
+        .cuda_funcs = {empty_codelet},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
+        .nbuffers = 2,
+        .modes = {STARPU_R, STARPU_SCRATCH},
     };
     struct starpu_codelet codelet_getrank =
     {
@@ -353,7 +361,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
             this_batch_size = batch_size;
         // Run KBLAS_RSVD
         // If INPUT transfer is needed
-        if(transfer != 2)
+        if(transfer == 0)
         {
             starpu_task_insert(&codelet_lowrank,
                     STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
@@ -372,6 +380,26 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
                     STARPU_W, U_handle[bi],
                     STARPU_W, V_handle[bi],
                     STARPU_W, S_handle[bi],
+                    0);
+            starpu_data_unregister_submit(D_handle[bi]);
+            starpu_data_unregister_submit(Dcopy_handle[bi]);
+        }
+        else if(transfer == 1)
+        {
+            starpu_task_insert(&codelet_fake_input2,
+                    STARPU_VALUE, &this_batch_size, sizeof(this_batch_size),
+                    STARPU_VALUE, &nb, sizeof(nb),
+                    STARPU_VALUE, &maxrank, sizeof(maxrank),
+                    STARPU_VALUE, &oversample, sizeof(oversample),
+                    STARPU_VALUE, &tol, sizeof(tol),
+                    STARPU_VALUE, &cuhandles, sizeof(cuhandles),
+                    STARPU_VALUE, &khandles, sizeof(khandles),
+                    STARPU_VALUE, &kstates, sizeof(kstates),
+                    STARPU_VALUE, &wwork, sizeof(wwork),
+                    STARPU_VALUE, &lwork, sizeof(lwork),
+                    STARPU_VALUE, &wiwork, sizeof(wiwork),
+                    STARPU_R, D_handle[bi],
+                    STARPU_SCRATCH, Dcopy_handle[bi],
                     0);
             starpu_data_unregister_submit(D_handle[bi]);
             starpu_data_unregister_submit(Dcopy_handle[bi]);
@@ -458,7 +486,8 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     for(bi = 0; bi < nblocks_far; bi++)
     {
         //printf("FAR_RANK[%zu]=%d\n", bi, far_rank[bi]);
-        //far_rank[bi] = -1;
+        if(transfer)
+            far_rank[bi] = -1;
         if(far_rank[bi] == -1)
             nblocks_false_far++;
     }
