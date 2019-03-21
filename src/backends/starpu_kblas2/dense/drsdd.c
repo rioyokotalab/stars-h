@@ -34,8 +34,7 @@ void starsh_dense_dlrrsdd_starpu_kblas2_gpu(void *buffer[], void *cl_arg)
     int **iwork;
     double tol;
     starpu_codelet_unpack_args(cl_arg, &batch_size, &nb, &maxrank, &oversample,
-            &tol, &cublas_handles, &kblas_handles, &kblas_states, &work,
-            &lwork, &iwork);
+            &tol, &cublas_handles, &kblas_handles, &kblas_states);
     double *D = (double *)STARPU_VECTOR_GET_PTR(buffer[0]);
     double *W = (double *)STARPU_VECTOR_GET_PTR(buffer[1]);
     double *U = (double *)STARPU_VECTOR_GET_PTR(buffer[2]);
