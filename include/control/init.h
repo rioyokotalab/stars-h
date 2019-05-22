@@ -157,7 +157,7 @@ static STARSH_blrm_approximate *(dlr_starpu_kblas[LRENGINE_NUM]) =
 {
     #if defined(STARPU) && defined(KBLAS)
     starsh_blrm__dsdd_starpu, starsh_blrm__dsdd_starpu,
-    starsh_blrm__dqp3_starpu, starsh_blrm__drsdd_starpu_kblas3_spatial,
+    starsh_blrm__dqp3_starpu, starsh_blrm__drsdd_starpu_kblas2,//3_spatial,
     starsh_blrm__drsdd_starpu_kblas3_spatial
     #endif
 };
