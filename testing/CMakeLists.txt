@@ -61,6 +61,12 @@ if(MPI AND STARPU)
         )
 endif()
 
+if(CUDA)
+    list(APPEND tests_files
+        "starpu_spatial_gpu.c"
+        )
+endif()
+
 # Uses RUNPATH instead of RPATH
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 

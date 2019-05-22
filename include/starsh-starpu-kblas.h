@@ -32,6 +32,8 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly);
 int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         int maxrank, double tol, int onfly);
+int starsh_blrm__drsdd_starpu_kblas3_spatial(STARSH_blrm **matrix, STARSH_blrf *format,
+        int maxrank, double tol, int onfly);
 //int starsh_blrm__dqp3_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
 //        int maxrank, double tol, int onfly);
 //int starsh_blrm__dna_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
@@ -58,6 +60,7 @@ void starsh_dense_dlrrsdd_starpu_kblas2_getrank(void *buffers[], void *cl_arg);
 //void starsh_dense_dlrqp3_starpu(void *buffers[], void *cl_arg);
 void starsh_dense_kernel_starpu_kblas_cpu(void *buffers[], void *cl_arg);
 void starsh_dense_kernel_starpu_kblas2_cpu(void *buffers[], void *cl_arg);
+void starsh_dense_kernel_starpu_kblas3_gpu(void *buffers[], void *cl_arg);
 //void starsh_dense_dgemm_starpu(void *buffers[], void *cl_arg);
 //void starsh_dense_fake_init_starpu(void *buffers[], void *cl_arg);
 

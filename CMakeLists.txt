@@ -51,7 +51,7 @@ include(FindPkgConfig)
 
 # Create project and check C compiler
 cmake_policy(SET CMP0048 NEW)
-project(STARS-H VERSION 0.1.0 LANGUAGES C)
+project(STARS-H VERSION 0.1.0 LANGUAGES C CUDA)
 
 message(STATUS "Building ${PROJECT_NAME} ${PROJECT_VERSION}")
 
@@ -72,7 +72,7 @@ option(STARPU "Use StarPU" ON)
 # Since KBLAS does not support pkg-config, it is OFF by default, since user has
 # to provide path by means of
 # CFLAGS="-I/path/to/kblas/include -L/path/to/kblas/lib"
-option(KBLAS "Use KBLAS" OFF)
+option(KBLAS "Use KBLAS" ON)
 option(CUDA "Use CUDA" ON)
 
 # Option to force using parallel blas instead of sequential
