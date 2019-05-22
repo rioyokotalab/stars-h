@@ -24,8 +24,8 @@ static __global__ void local_gpu_kernel_for_spatial(STARSH_ssdata *data,
         STARSH_int *block_far, int N, double *D, int ldD, int stride)
 //! Exponential kernel for 2-dimensional spatial statistics problem on GPU
 {
-    int tile_i = block_far[2*blockIdx.x];
-    int tile_j = block_far[2*blockIdx.x + 1];
+    int tile_i = N * block_far[2*blockIdx.x];
+    int tile_j = N * block_far[2*blockIdx.x + 1];
     //printf("blockidx=%d\n", blockIdx.x);
     // Read parameters
     double beta = -data->beta;
@@ -41,13 +41,13 @@ static __global__ void local_gpu_kernel_for_spatial(STARSH_ssdata *data,
     // Fill column-major matrix
     for(int j = threadIdx.x; j < N; j += blockDim.x)
     {
-        int index_j = tile_j*N + j;
+        int index_j = tile_j + j;
         double x_j = x[index_j];
         double y_j = y[index_j];
         //double z_j = z[index_j];
-        for(int i = 0; i < N; i++)
+        for(int i = threadIdx.y; i < N; i += blockDim.y)
         {
-            int index_i = tile_i*N + i;
+            int index_i = tile_i + i;
             double dx = x[index_i] - x_j;
             double dy = y[index_i] - y_j;
             //double dz = z[index_i] - z_j;
@@ -73,8 +73,9 @@ void starsh_dense_kernel_starpu_kblas3_gpu(void *buffers[], void *cl_arg)
     starpu_codelet_unpack_args(cl_arg, &data_gpu, &N, &batch_size);
     double *D = (double *)STARPU_VECTOR_GET_PTR(buffers[0]);
     STARSH_int *ind = (STARSH_int *)STARPU_VECTOR_GET_PTR(buffers[1]);
+    dim3 threads(16, 16);
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    local_gpu_kernel_for_spatial<<<batch_size, 1, 0, stream>>>(data_gpu[id],
+    local_gpu_kernel_for_spatial<<<batch_size, threads, 0, stream>>>(data_gpu[id],
             ind, N, D, N, N*N);
 }
 
