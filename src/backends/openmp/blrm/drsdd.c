@@ -129,10 +129,9 @@ int starsh_blrm__drsdd_omp(STARSH_blrm **matrix, STARSH_blrf *format,
         kernel(nrows, ncols, RC->pivot+RC->start[i], CC->pivot+CC->start[j],
                 RD, CD, D, nrows);
         double time1 = omp_get_wtime();
-        //starsh_dense_dlrrsdd(nrows, ncols, D, nrows, far_U[bi]->data, nrows,
-        //        far_V[bi]->data, ncols, far_rank+bi, maxrank, oversample, tol,
-        //        work, lwork, iwork);
-        far_rank[bi] = -1;
+        starsh_dense_dlrrsdd(nrows, ncols, D, nrows, far_U[bi]->data, nrows,
+                far_V[bi]->data, ncols, far_rank+bi, maxrank, oversample, tol,
+                work, lwork, iwork);
         double time2 = omp_get_wtime();
         #pragma omp critical
         {
@@ -230,7 +229,7 @@ int starsh_blrm__drsdd_omp(STARSH_blrm **matrix, STARSH_blrf *format,
         }
         STARSH_MALLOC(alloc_D, size_D);
         // For each near-field block compute its elements
-        #pragma omp parallel for schedule(dynamic,1)
+        //#pragma omp parallel for schedule(dynamic,1)
         for(bi = 0; bi < new_nblocks_near; bi++)
         {
             // Get indexes of corresponding block row and block column

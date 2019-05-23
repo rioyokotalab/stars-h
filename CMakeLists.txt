@@ -74,7 +74,7 @@ option(STARPU "Use StarPU" ON)
 # CFLAGS="-I/path/to/kblas/include -L/path/to/kblas/lib"
 option(KBLAS "Use KBLAS" ON)
 option(CUDA "Use CUDA" ON)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_70,code=sm_70")
+#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_70,code=sm_70")
 
 # Option to force using parallel blas instead of sequential
 option(USE_PARALLEL_BLAS "Prefer parallel blas libraries" OFF)

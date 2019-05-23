@@ -72,21 +72,34 @@ void starsh_dense_dlrrsdd_starpu_kblas2_getrank(void *buffer[], void *cl_arg)
     double tol;
     starpu_codelet_unpack_args(cl_arg, &batch_size, &nb, &maxrank, &oversample,
             &tol);
-    double *S = (double *)STARPU_VECTOR_GET_PTR(buffer[2]);
+    double *tmp_U = (double *)STARPU_VECTOR_GET_PTR(buffer[0]);
+    double *tmp_V = (double *)STARPU_VECTOR_GET_PTR(buffer[1]);
+    double *tmp_S = (double *)STARPU_VECTOR_GET_PTR(buffer[2]);
     int *rank = (int *)STARPU_VECTOR_GET_PTR(buffer[3]);
+    double *U = (double *)STARPU_VECTOR_GET_PTR(buffer[4]);
+    double *V = (double *)STARPU_VECTOR_GET_PTR(buffer[5]);
     int mn = maxrank+oversample;
     if(mn > nb)
         mn = nb;
     int pool_size = starpu_combined_worker_get_size();
     int pool_rank = starpu_combined_worker_get_rank();
+    size_t stride = maxrank * nb;
     for(STARSH_int ibatch = pool_rank; ibatch < batch_size;
             ibatch += pool_size)
     {
-        int local_rank = starsh_dense_dsvfr(mn, S+ibatch*mn, tol);
+        int local_rank = starsh_dense_dsvfr(mn, tmp_S+ibatch*mn, tol);
         if(local_rank >= nb/2 || local_rank > maxrank)
             rank[ibatch] = -1;
         else
+        {
+            double *local_U = U + ibatch*stride;
+            double *local_V = V + ibatch*stride;
+            double *local_tmp_U = tmp_U + ibatch*stride;
+            double *local_tmp_V = tmp_V + ibatch*stride;
+            cblas_dcopy(local_rank*nb, local_tmp_U, 1, local_U, 1);
+            cblas_dcopy(local_rank*nb, local_tmp_V, 1, local_V, 1);
             rank[ibatch] = local_rank;
+        }
     }
 }
 
