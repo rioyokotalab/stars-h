@@ -131,7 +131,7 @@ int starsh_blrm__drsdd_starpu_kblas3_spatial(STARSH_blrm **matrix, STARSH_blrf *
     printf("KBLAS3: batch_size=%d\n", batch_size);
     // Ceil number of batches
     int nbatches = (nblocks_far-1)/batch_size + 1;
-    // Get nubmer of GPU workers
+    // Get number of temporary buffers for CPU-GPU transfers
     int nworkers_gpu = 3 * starpu_cuda_worker_get_count();
     // Get corresponding sizes and minimum of them
     int mn = maxrank+oversample;
@@ -222,13 +222,13 @@ int starsh_blrm__drsdd_starpu_kblas3_spatial(STARSH_blrm **matrix, STARSH_blrf *
             far_rank[bi] = -1;
         }
         //starpu_malloc(&alloc_D, size_D*sizeof(double));
-        size_t tmp_U_alloc_size = (size_t)nworkers_gpu * batch_size * nb *
-            maxrank * sizeof(double);
-        size_t tmp_S_alloc_size = (size_t)nworkers_gpu * batch_size * mn *
-            sizeof(double);
-        starpu_malloc(&tmp_U_alloc, tmp_U_alloc_size);
-        starpu_malloc(&tmp_V_alloc, tmp_U_alloc_size);
-        starpu_malloc(&tmp_S_alloc, tmp_S_alloc_size);
+        //size_t tmp_U_alloc_size = (size_t)nworkers_gpu * batch_size * nb *
+        //    maxrank * sizeof(double);
+        //size_t tmp_S_alloc_size = (size_t)nworkers_gpu * batch_size * mn *
+        //    sizeof(double);
+        //starpu_malloc(&tmp_U_alloc, tmp_U_alloc_size);
+        //starpu_malloc(&tmp_V_alloc, tmp_U_alloc_size);
+        //starpu_malloc(&tmp_S_alloc, tmp_S_alloc_size);
         starpu_memory_pin(block_far, 2*nblocks_far*sizeof(*block_far));
         printf("KBLAS3: pin memory in %e seconds\n", omp_get_wtime()-time0);
         // START MEASURING TIME
@@ -273,23 +273,20 @@ int starsh_blrm__drsdd_starpu_kblas3_spatial(STARSH_blrm **matrix, STARSH_blrf *
             starpu_vector_data_register(V_handle+bi, STARPU_MAIN_RAM,
                     (uintptr_t)(V), V_size, sizeof(*V));
         }
+        STARSH_int D_size = batch_size * nb * nb;
+        STARSH_int tmp_U_size = batch_size * nb * maxrank;
+        STARSH_int tmp_S_size = batch_size * mn;
         for(bi = 0; bi < nworkers_gpu; ++bi)
         {
-            STARSH_int D_size = batch_size * nb * nb;
-            STARSH_int tmp_U_size = batch_size * nb * maxrank;
-            STARSH_int tmp_S_size = batch_size * mn;
             starpu_vector_data_register(D_handle+bi, -1, 0, D_size,
                     sizeof(double));
             starpu_vector_data_register(Dcopy_handle+bi, -1, 0, D_size,
                     sizeof(double));
-            starpu_vector_data_register(tmp_U_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(tmp_U_alloc+tmp_U_size*bi), tmp_U_size,
+            starpu_vector_data_register(tmp_U_handle+bi, -1, 0, tmp_U_size,
                     sizeof(double));
-            starpu_vector_data_register(tmp_V_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(tmp_V_alloc+tmp_U_size*bi), tmp_U_size,
+            starpu_vector_data_register(tmp_V_handle+bi, -1, 0, tmp_U_size,
                     sizeof(double));
-            starpu_vector_data_register(tmp_S_handle+bi, STARPU_MAIN_RAM,
-                    (uintptr_t)(tmp_S_alloc+tmp_S_size*bi), tmp_S_size,
+            starpu_vector_data_register(tmp_S_handle+bi, -1, 0, tmp_S_size,
                     sizeof(double));
         }
         printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
@@ -376,9 +373,9 @@ int starsh_blrm__drsdd_starpu_kblas3_spatial(STARSH_blrm **matrix, STARSH_blrf *
             starpu_data_unregister(tmp_V_handle[bi]);
             starpu_data_unregister(tmp_S_handle[bi]);
         }
-        starpu_free(tmp_U_alloc);
-        starpu_free(tmp_V_alloc);
-        starpu_free(tmp_S_alloc);
+        //starpu_free(tmp_U_alloc);
+        //starpu_free(tmp_V_alloc);
+        //starpu_free(tmp_S_alloc);
         starpu_memory_unpin(block_far, 2*nblocks_far*sizeof(*block_far));
     }
     //printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
