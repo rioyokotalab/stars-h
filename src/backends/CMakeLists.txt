@@ -69,12 +69,15 @@ endif()
 if((MPI AND STARPU AND KBLAS) OR DOCS STREQUAL "FULL")
     add_subdirectory("mpi_starpu_kblas")
     add_subdirectory("mpi_starpu_kblas2")
+    add_subdirectory("mpi_starpu_kblas3_spatial")
 endif()
 
 # Add MPI+StarPU+KBLAS backend
 if(MPI AND STARPU AND KBLAS)
     list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_mpi_starpu_kblas>)
     list(APPEND BACKENDS_OBJECTS $<TARGET_OBJECTS:backends_mpi_starpu_kblas2>)
+    list(APPEND BACKENDS_OBJECTS
+        $<TARGET_OBJECTS:backends_mpi_starpu_kblas3_spatial>)
 endif()
 
 # Move all selected backends to parent directory

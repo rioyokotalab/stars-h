@@ -22,7 +22,17 @@
 #include <string.h>
 #include <starpu.h>
 #include <starsh.h>
+#include <starsh-starpu-kblas.h>
 #include <starsh-spatial.h>
+#include <cuda.h>
+#include <cublas_v2.h>
+
+void preheat_cublas()
+{
+    cublasHandle_t cuhandle;
+    cublasCreate(&cuhandle);
+    cublasDestroy(cuhandle);
+}
 
 int main(int argc, char **argv)
 {
@@ -90,6 +100,8 @@ int main(int argc, char **argv)
     starsh_blrf_info(F);
     // Init StarPU
     (void)starpu_init(NULL);
+    // Init cublas so that it runs faster next time
+    starpu_execute_on_each_worker(preheat_cublas, NULL, STARPU_CUDA);
     // Approximate each admissible block
     double time1 = omp_get_wtime();
     info = starsh_blrm__drsdd_starpu_kblas3_spatial(&M, F, maxrank, tol, onfly);
@@ -103,6 +115,7 @@ int main(int argc, char **argv)
     // Deinit StarPU
     starpu_shutdown();
     // Measure approximation error
+    /*
     time1 = omp_get_wtime();
     double rel_err = starsh_blrm__dfe_omp(M);
     time1 = omp_get_wtime()-time1;
@@ -113,6 +126,7 @@ int main(int argc, char **argv)
         printf("Resulting relative error is too big\n");
         return 0;
     }
+    */
     // Measure time for 10 BLRM matvecs and for 10 BLRM TLR matvecs
     /* Not performed due to no matvec yet with STARPU
     double *x, *y;
