@@ -76,7 +76,7 @@ foreach(test_src ${tests_files})
     add_executable(test_${test_exe} ${test_src})
     target_link_libraries(test_${test_exe} starsh ${CBLAS_LIBRARIES}
         ${LAPACKE_LIBRARIES} ${OpenMP_C_FLAGS})
-    if(test_src MATCHES "starpu_*")
+    if((test_src MATCHES "starpu_*") OR (test_src MATCHES "mpi_starpu_*"))
         target_link_libraries(test_${test_exe} ${STARPU_LIBRARIES})
     endif()
     set_target_properties(test_${test_exe} PROPERTIES OUTPUT_NAME ${test_exe})
