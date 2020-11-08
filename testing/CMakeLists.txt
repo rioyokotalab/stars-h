@@ -64,6 +64,11 @@ endif()
 if(CUDA)
     list(APPEND tests_files
         "starpu_spatial_gpu.c"
+        )
+endif()
+
+if(CUDA AND MPI)
+    list(APPEND tests_files
         "mpi_starpu_spatial_gpu.c"
         )
 endif()
