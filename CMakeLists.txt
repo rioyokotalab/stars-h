@@ -5,10 +5,10 @@
 #             University of Science and Technology (KAUST)
 #
 # @file CMakeLists.txt
-# @version 0.1.0
+# @version 0.1.1
 # @author Eduardo Gonzalez Fisher
 # @author Aleksandr Mikhalev
-# @date 2017-11-07
+# @date 2018-11-06
 
 
 ###############################################################################
@@ -51,7 +51,7 @@ include(FindPkgConfig)
 
 # Create project and check C compiler
 cmake_policy(SET CMP0048 NEW)
-project(STARS-H VERSION 0.1.0 LANGUAGES C CUDA)
+project(STARS-H VERSION 0.1.3 LANGUAGES C CUDA)
 
 message(STATUS "Building ${PROJECT_NAME} ${PROJECT_VERSION}")
 
@@ -343,8 +343,9 @@ include(PrintOpts)
 
 # Set parameters for PKGCONFIG
 set(PREFIX "${CMAKE_INSTALL_PREFIX}")
-set(LIBDIR "${CMAKE_INSTALL_PREFIX}/lib")
-set(INCDIR "${CMAKE_INSTALL_PREFIX}/include")
+set(LIBDIR "lib")
+set(INCDIR "include")
+
 
 #Install Pkg-config file
 generate_pkgconfig_file()
