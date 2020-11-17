@@ -18,7 +18,7 @@ add_subdirectory("blrm")
 add_subdirectory("dense")
 
 # If compilation is requried
-if(STARPU)
+if(STARPU AND CUDA)
     add_library(backends_starpu_cuda OBJECT ${SRC})
 endif()
 

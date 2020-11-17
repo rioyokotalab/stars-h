@@ -278,7 +278,7 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
             starpu_vector_data_register(V_handle+bi, STARPU_MAIN_RAM,
                     (uintptr_t)(V), V_size, sizeof(*V));
         }
-        printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
+        //printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
     }
     // Work variables
     int info;
@@ -299,10 +299,10 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
                 0);
         starpu_data_unregister_submit(index_handle[bi]);
     }
-    starpu_task_wait_for_all();
-    double time1 = omp_get_wtime();
-    printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    //starpu_task_wait_for_all();
+    //double time1 = omp_get_wtime();
+    //printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = time1;
     STARSH_int nbatches_once = nbatches;
     for(STARSH_int batch_start = 0; batch_start < nbatches;
             batch_start += nbatches_once)
@@ -351,13 +351,13 @@ int starsh_blrm__drsdd_starpu_kblas(STARSH_blrm **matrix, STARSH_blrf *format,
             starpu_data_unregister_submit(U_handle[bi]);
             starpu_data_unregister_submit(V_handle[bi]);
         }
-        starpu_task_wait_for_all();
+        //starpu_task_wait_for_all();
     }
-    time1 = omp_get_wtime();
-    printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
-    printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
-            omp_get_wtime()-time0);
+    //time1 = omp_get_wtime();
+    //printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = time1;
+    //printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
+    //        omp_get_wtime()-time0);
     // Get number of false far-field blocks
     STARSH_int nblocks_false_far = 0;
     STARSH_int *false_far = NULL;

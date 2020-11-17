@@ -18,7 +18,7 @@ add_subdirectory("blrm")
 add_subdirectory("dense")
 
 # If compilation is requried
-if(STARPU)
+if(STARPU AND KBLAS)
     add_library(backends_starpu_kblas3_spatial OBJECT ${SRC})
 endif()
 

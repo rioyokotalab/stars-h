@@ -76,7 +76,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
  * */
 {
     double time0 = omp_get_wtime();
-    printf("KBLAS2\n");
+    //printf("KBLAS2\n");
     STARSH_blrf *F = format;
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;
@@ -118,7 +118,7 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     int batch_size = 300;
     if(env_var)
         batch_size = atoi(env_var);
-    printf("KBLAS2: batch_size=%d\n", batch_size);
+    //printf("KBLAS2: batch_size=%d\n", batch_size);
     // Ceil number of batches
     int nbatches = (nblocks_far-1)/batch_size + 1;
     // Get number of temporary buffers for CPU-GPU transfers
@@ -183,8 +183,8 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
     starpu_data_handle_t U_handle[nbatches];
     starpu_data_handle_t V_handle[nbatches];
     starpu_data_handle_t rank_handle[nbatches];
-    printf("KBLAS2: init in %f seconds\n", omp_get_wtime()-time0);
-    time0 = omp_get_wtime();
+    //printf("KBLAS2: init in %f seconds\n", omp_get_wtime()-time0);
+    //time0 = omp_get_wtime();
     double *tmp_U_alloc = NULL, *tmp_V_alloc = NULL, *tmp_S_alloc = NULL;
     //printf("BATCHSIZE=%d BATCHCOUNT=%d\n", batch_size, nbatches);
     // Init buffers to store low-rank factors of far-field blocks if needed
@@ -219,9 +219,9 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         //starpu_malloc(&tmp_V_alloc, tmp_U_alloc_size);
         //starpu_malloc(&tmp_S_alloc, tmp_S_alloc_size);
         starpu_memory_pin(block_far, 2*nblocks_far*sizeof(*block_far));
-        printf("KBLAS2: pin memory in %e seconds\n", omp_get_wtime()-time0);
+        //printf("KBLAS2: pin memory in %e seconds\n", omp_get_wtime()-time0);
         // START MEASURING TIME
-        time0 = omp_get_wtime();
+        //time0 = omp_get_wtime();
         for(bi = 0; bi < nbatches; ++bi)
         {
             int this_batch_size = nblocks_far - bi*batch_size;
@@ -285,12 +285,12 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
             starpu_vector_data_register(tmp_S_handle+bi, -1, 0, tmp_S_size,
                     sizeof(double));
         }
-        printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
+        //printf("REGISTER DATA IN: %f seconds\n", omp_get_wtime()-time0);
     }
     // Work variables
     int info;
     // START MEASURING TIME
-    time0 = omp_get_wtime();
+    //time0 = omp_get_wtime();
     for(bi = 0; bi < nbatches; ++bi)
     {
         //printf("RUNNING BATCH=%d\n", bi);
@@ -353,12 +353,12 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         starpu_data_unregister_submit(U_handle[bi]);
         starpu_data_unregister_submit(V_handle[bi]);
     }
-    double time1 = omp_get_wtime();
-    printf("SUBMIT IN: %f seconds\n", time1-time0);
+    //double time1 = omp_get_wtime();
+    //printf("SUBMIT IN: %f seconds\n", time1-time0);
     starpu_task_wait_for_all();
-    time1 = omp_get_wtime();
-    printf("COMPUTE+COMPRESS MATRIX IN: %f seconds\n", time1-time0);
-    time0 = omp_get_wtime();
+    //time1 = omp_get_wtime();
+    //printf("COMPUTE+COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = omp_get_wtime();
     if(nbatches > 0)
     {
         //size_t size_U = nblocks_far * nb * maxrank;
@@ -557,10 +557,10 @@ int starsh_blrm__drsdd_starpu_kblas2(STARSH_blrm **matrix, STARSH_blrf *format,
         free(false_far);
     // Finish with creating instance of Block Low-Rank Matrix with given
     // buffers
-    printf("FINISH NEAR-FIELD TILES: %f seconds\n", omp_get_wtime()-time0);
-    time0 = omp_get_wtime();
+    //printf("FINISH NEAR-FIELD TILES: %f seconds\n", omp_get_wtime()-time0);
+    //time0 = omp_get_wtime();
     starpu_execute_on_each_worker(deinit_starpu_kblas, args_gpu, STARPU_CUDA);
-    printf("KBLAS2: finalize in %f seconds\n", omp_get_wtime()-time0);
+    //printf("KBLAS2: finalize in %f seconds\n", omp_get_wtime()-time0);
     return starsh_blrm_new(matrix, F, far_rank, far_U, far_V, onfly, near_D,
             alloc_U, alloc_V, alloc_D, '1');
 }

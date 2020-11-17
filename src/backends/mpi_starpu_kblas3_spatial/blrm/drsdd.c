@@ -128,8 +128,8 @@ int starsh_blrm__drsdd_mpi_starpu_kblas3_spatial(STARSH_blrm **matrix,
     int mpi_size, mpi_rank;
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    if(mpi_rank == 0)
-        printf("MPIKBLAS3\n");
+    //if(mpi_rank == 0)
+    //    printf("MPIKBLAS3\n");
     // Init CuBLAS and KBLAS handles and temp buffers for all workers (but they
     // are used only in GPU codelets)
     int workers = starpu_worker_get_count();
@@ -152,8 +152,8 @@ int starsh_blrm__drsdd_mpi_starpu_kblas3_spatial(STARSH_blrm **matrix,
     int batch_size = 300;
     if(env_var)
         batch_size = atoi(env_var);
-    if(mpi_rank == 0)
-        printf("MPIKBLAS3: batch_size=%d\n", batch_size);
+    //if(mpi_rank == 0)
+    //    printf("MPIKBLAS3: batch_size=%d\n", batch_size);
     // Ceil number of batches
     int nbatches_local = (nblocks_far_local-1)/batch_size + 1;
     // Get number of temporary buffers for CPU-GPU transfers
@@ -222,9 +222,9 @@ int starsh_blrm__drsdd_mpi_starpu_kblas3_spatial(STARSH_blrm **matrix,
     starpu_data_handle_t tmp_S_handle[nworkers_gpu];
     // Init buffers to store low-rank factors of far-field blocks if needed
     MPI_Barrier(MPI_COMM_WORLD);
-    double time0 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("MPIKBLAS3: init in %f seconds\n", time0-time_start);
+    //double time0 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("MPIKBLAS3: init in %f seconds\n", time0-time_start);
     if(nbatches_local > 0)
     {
         STARSH_MALLOC(far_U, nblocks_far_local);
@@ -306,10 +306,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas3_spatial(STARSH_blrm **matrix,
         }
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    double time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("MPIKBLAS3: Register data in %f seconds\n", time1-time0);
-    time0 = time1;
+    //double time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("MPIKBLAS3: Register data in %f seconds\n", time1-time0);
+    //time0 = time1;
     // Work variables
     int info;
     // START MEASURING TIME
@@ -369,10 +369,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas3_spatial(STARSH_blrm **matrix,
     }
     starpu_task_wait_for_all();
     MPI_Barrier(MPI_COMM_WORLD);
-    time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("COMPUTE+COMPRESS MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    //time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("COMPUTE+COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = time1;
     if(nbatches_local > 0)
     {
         //size_t size_U = nblocks_far_local * nb * maxrank;
@@ -618,12 +618,12 @@ int starsh_blrm__drsdd_mpi_starpu_kblas3_spatial(STARSH_blrm **matrix,
         free(false_far_local);
     // Finish with creating instance of Block Low-Rank Matrix with given
     // buffers
-    if(mpi_rank == 0)
-        printf("FINISH NEAR-FIELD TILES: %f seconds\n", MPI_Wtime()-time0);
-    time0 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("FINISH NEAR-FIELD TILES: %f seconds\n", MPI_Wtime()-time0);
+    //time0 = MPI_Wtime();
     starpu_execute_on_each_worker(deinit_starpu_kblas, args_gpu, STARPU_CUDA);
-    if(mpi_rank == 0)
-        printf("MPIKBLAS3: finalize in %f seconds\n", MPI_Wtime()-time0);
+    //if(mpi_rank == 0)
+    //    printf("MPIKBLAS3: finalize in %f seconds\n", MPI_Wtime()-time0);
     return starsh_blrm_new_mpi(matrix, F, far_rank, far_U, far_V, onfly,
             near_D, alloc_U, alloc_V, alloc_D, '1');
 }

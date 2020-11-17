@@ -125,8 +125,8 @@ int starsh_blrm__drsdd_mpi_starpu_kblas2(STARSH_blrm **matrix,
  * @ingroup blrm
  * */
 {
-    printf("MPIKBLAS2\n");
-    double time_start = MPI_Wtime();
+    //printf("MPIKBLAS2\n");
+    //double time_start = MPI_Wtime();
     STARSH_blrf *F = format;
     STARSH_problem *P = F->problem;
     STARSH_kernel *kernel = P->kernel;
@@ -179,7 +179,7 @@ int starsh_blrm__drsdd_mpi_starpu_kblas2(STARSH_blrm **matrix,
     int batch_size = 100;
     if(env_var)
         batch_size = atoi(env_var);
-    printf("MPIKBLAS2: batch_size=%d\n", batch_size);
+    //printf("MPIKBLAS2: batch_size=%d\n", batch_size);
     // Ceil number of batches
     int nbatches_local = (nblocks_far_local-1)/batch_size + 1;
     // Get corresponding sizes and minimum of them
@@ -299,10 +299,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas2(STARSH_blrm **matrix,
         }
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    double time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("MPIKBLAS2: pin memory in %f seconds\n", time1-time0);
-    time0 = time1;
+    //double time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("MPIKBLAS2: pin memory in %f seconds\n", time1-time0);
+    //time0 = time1;
     // Work variables
     int info;
     // START MEASURING TIME
@@ -359,10 +359,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas2(STARSH_blrm **matrix,
     }
     starpu_task_wait_for_all();
     MPI_Barrier(MPI_COMM_WORLD);
-    time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("COMPUTE+COMPRESS MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    //time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("COMPUTE+COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = time1;
     if(nbatches_local > 0)
     {
         size_t size_U = nblocks_far_local * nb * maxrank;
@@ -373,9 +373,9 @@ int starsh_blrm__drsdd_mpi_starpu_kblas2(STARSH_blrm **matrix,
         starpu_free(alloc_S);
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    if(mpi_rank == 0)
-        printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
-                MPI_Wtime()-time0);
+    //if(mpi_rank == 0)
+    //    printf("FINISH FIRST PASS AND UNREGISTER IN: %f seconds\n",
+    //            MPI_Wtime()-time0);
     // Get number of false far-field blocks
     STARSH_int nblocks_false_far_local = 0;
     STARSH_int *false_far_local = NULL;

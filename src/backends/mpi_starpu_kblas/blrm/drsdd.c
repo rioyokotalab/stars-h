@@ -268,9 +268,9 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
     starpu_execute_on_each_worker(init_starpu_kblas, args_gpu, STARPU_CUDA);
     starpu_execute_on_each_worker(init_starpu_cpu, args_cpu, STARPU_CPU);
     MPI_Barrier(MPI_COMM_WORLD);
-    double time0 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("CUBLAS + WORKSPACE ALLOCATION: %f seconds\n", time0-time_start);
+    //double time0 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("CUBLAS + WORKSPACE ALLOCATION: %f seconds\n", time0-time_start);
     // Init codelet structs and handles
     struct starpu_codelet codelet_kernel_far =
     {
@@ -376,10 +376,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
         }
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    double time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("REGISTER DATA IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    //double time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("REGISTER DATA IN: %f seconds\n", time1-time0);
+    //time0 = time1;
     // Work variables
     int info;
     // START MEASURING TIME
@@ -400,10 +400,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
     }
     starpu_task_wait_for_all();
     MPI_Barrier(MPI_COMM_WORLD);
-    time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    //time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("COMPUTE MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = time1;
     STARSH_int nbatches_once = nbatches_local;
     for(STARSH_int batch_start = 0; batch_start < nbatches_local;
             batch_start += nbatches_once)
@@ -454,10 +454,10 @@ int starsh_blrm__drsdd_mpi_starpu_kblas(STARSH_blrm **matrix,
         starpu_task_wait_for_all();
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    time1 = MPI_Wtime();
-    if(mpi_rank == 0)
-        printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
-    time0 = time1;
+    //time1 = MPI_Wtime();
+    //if(mpi_rank == 0)
+    //    printf("COMPRESS MATRIX IN: %f seconds\n", time1-time0);
+    //time0 = time1;
     // Get number of false far-field blocks
     STARSH_int nblocks_false_far_local = 0;
     STARSH_int *false_far_local = NULL;

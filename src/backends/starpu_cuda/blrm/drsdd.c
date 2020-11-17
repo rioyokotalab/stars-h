@@ -30,7 +30,7 @@ static void init_starpu_cuda(void *args)
             &curand_handles, &devinfo, &nb, &nsamples);
     int id = starpu_worker_get_id();
     cublasStatus_t status;
-    printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
+    //printf("CUBLAS init worker %d at %p\n", id, &cublas_handles[id]);
     cublasCreate(&cublas_handles[id]);
     cusolverDnCreate(&cusolver_handles[id]);
     curandCreateGenerator(&curand_handles[id], CURAND_RNG_PSEUDO_MT19937);
