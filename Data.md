@@ -13,12 +13,6 @@ Dataset is available in KAUST repository: https://repository.kaust.edu.sa/handle
 
 DOI:10.25781/KAUST-I0634 
 
-## Geostatistical Modeling
-Dataset is available in KAUST repository: https://repository.kaust.edu.sa/handle/10754/66500
-
-DOI:10.25781/KAUST-JJVCN 
-
-
 For more information on the dataset please refer to the readme files in the data repositories.
 
 
