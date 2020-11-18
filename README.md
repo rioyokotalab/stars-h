@@ -139,9 +139,10 @@ and have additional steps on approximation of corresponding matrices.
 to be stored, since matrix elements are computed on the fly.*
 
 Dataset
-------------
+========
 
 Please see Data.md for information about dataset.
+
 
 
 ![Handout](docs/STARS-H-final.png)
