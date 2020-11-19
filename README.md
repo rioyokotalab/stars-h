@@ -49,6 +49,9 @@ Applications in matrix-free form:
 3. Electrodynamics (sin(kr)/r and cos(kr)/r)
 4. Random synthetic TLR matrix
 5. Spatial statistics (exponential, square exponential and matern kernels)
+6. Mesh deformation using radial basis function (gaussian, exponential, inverse quadratic, inverse multi-quadratic, CPTS, and Wendland kernels)
+7. Acoustic scattering
+
 
 Low-rank approximation techniques (low-rank engines):
 1. Ordinary SVD,
@@ -134,6 +137,12 @@ and have additional steps on approximation of corresponding matrices.
 
 *Important notice: the approximation phase does not require the entire dense matrix 
 to be stored, since matrix elements are computed on the fly.*
+
+Dataset
+========
+
+Please see Data.md for information about dataset.
+
 
 
 ![Handout](docs/STARS-H-final.png)
