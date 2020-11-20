@@ -634,6 +634,16 @@ int starsh_blrf_new_tlr_mpi(STARSH_blrf **format, STARSH_problem *problem,
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
     int grid_nx = sqrt(mpi_size), grid_ny = grid_nx, grid_x, grid_y;
+    if(mpi_size == 6)
+    {
+        grid_nx = 2;
+        grid_ny = 3;
+    }
+    else if(mpi_size == 2)
+    {
+        grid_nx = 1;
+        grid_ny = 2;
+    }
     if(grid_nx*grid_ny != mpi_size)
         STARSH_ERROR("MPI SIZE MUST BE SQUARE OF INTEGER!");
     grid_ny = mpi_size / grid_nx;

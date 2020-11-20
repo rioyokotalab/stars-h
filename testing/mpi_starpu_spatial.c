@@ -157,6 +157,7 @@ int main(int argc, char **argv)
         MPI_Finalize();
         return 1;
     }
+    //*/
     // Measure time for 10 BLRM matvecs and for 10 BLRM TLR matvecs
     /* Not performed due to no matvec yet with STARPU
     double *x, *y, *y_tlr;

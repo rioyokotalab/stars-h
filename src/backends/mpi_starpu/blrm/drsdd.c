@@ -283,7 +283,7 @@ int starsh_blrm__drsdd_mpi_starpu(STARSH_blrm **matrix, STARSH_blrf *format,
         starsh_blrf_free(F2);
     }
     // Compute near-field blocks if needed
-    if(onfly == 0 && new_nblocks_near > 0)
+    if(onfly == 0 && new_nblocks_near_local > 0)
     {
         STARSH_int nbi_value[new_nblocks_near_local];
         starpu_data_handle_t D_handle[new_nblocks_near_local];
