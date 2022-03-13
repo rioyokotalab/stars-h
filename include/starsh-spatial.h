@@ -173,6 +173,9 @@ enum STARSH_SPATIAL_PARAM
 int starsh_ssdata_new(STARSH_ssdata **data, STARSH_int count, int ndim);
 int starsh_ssdata_init(STARSH_ssdata **data, STARSH_int count, int ndim,
 	double *point, double beta, double nu, double noise, double sigma);
+int starsh_ssdata_init_parsimonious(STARSH_ssdata **data, STARSH_int count, int ndim,
+    double *point, double sigma1, double sigma2, double beta, double nu1,
+    double nu2, double corr, double noise);
 int starsh_ssdata_generate(STARSH_ssdata **data, STARSH_int count, int ndim,
 	double beta, double nu, double noise,
 	enum STARSH_PARTICLES_PLACEMENT place, double sigma);
@@ -271,5 +274,11 @@ void starsh_ssdata_block_parsimonious2_kernel_2d_simd_gcd(int nrows, int ncols,
 // Add definitions for other kernels after Doxygen groups have already been
 // defined
 #include "starsh-spatial-gsl.h"
+
+// Add function that copies data to GPU
+#ifdef CUDA
+void starsh_ssdata_togpu(STARSH_ssdata **dest, STARSH_ssdata *src);
+void starsh_ssdata_free_gpu(STARSH_ssdata *data);
+#endif // CUDA
 
 #endif // __STARSH_SPATIAL_H__
