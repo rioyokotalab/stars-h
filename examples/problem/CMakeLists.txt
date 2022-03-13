@@ -11,6 +11,7 @@
 
 
 set(examples_files
+    "spatial_space.c"
     "spatial.c"
     "spatial_bivariate.c"
     "randtlr.c"
