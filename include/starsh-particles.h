@@ -77,6 +77,9 @@ enum STARSH_PARTICLES_PLACEMENT
     STARSH_PARTICLES_OBSOLETE4 = -4,
     //!< Uniform in [0,1] grid, but each grid coordinate is slightly shifted
     // for 1D, 2D, and 3D cases-- use each location twice. (Parsimonious bivaritae case2).
+    STARSH_PARTICLES_OBSOLETE5 = -5,
+    //!< Uniform in [0,1] grid, but each grid coordinate is slightly shifted
+    // for 1D, 2D, and 3D cases-- use each location twice. (space time case).
 };
 
 int starsh_particles_new(STARSH_particles **data, STARSH_int count, int ndim);
@@ -85,7 +88,7 @@ int starsh_particles_init(STARSH_particles **data, STARSH_int count, int ndim,
 void starsh_particles_free(STARSH_particles *data);
 
 int starsh_particles_generate(STARSH_particles **data, STARSH_int count,
-        int ndim, enum STARSH_PARTICLES_PLACEMENT ptype);
+        int ndim, enum STARSH_PARTICLES_PLACEMENT ptype, int time_slots);
 
 int starsh_particles_generate_rand(STARSH_particles **data, STARSH_int count,
         int ndim);
@@ -105,6 +108,8 @@ int starsh_particles_generate_obsolete3(STARSH_particles **data,
         STARSH_int count, int ndim);
 int starsh_particles_generate_obsolete4(STARSH_particles **data,
         STARSH_int count, int ndim);
+int starsh_particles_generate_obsolete5(STARSH_particles **data,
+        STARSH_int count, int ndim, int time_slots);
 
 int starsh_particles_read_from_file(STARSH_particles **data, const char *fname,
         const enum STARSH_FILE_TYPE ftype);

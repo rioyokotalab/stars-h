@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     starsh_particles_free(data2);
     starsh_particles_free(data);
     info = starsh_particles_generate(&data, 12, 2,
-            STARSH_PARTICLES_RAND);
+            STARSH_PARTICLES_RAND, 0);
     if(info != 0)
     {
         printf("Error in generation RAND\n");
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
     //starsh_particles_write_to_file_pointer_ascii(data, stdout);
     starsh_particles_free(data);
     info = starsh_particles_generate(&data, 12, 2,
-            STARSH_PARTICLES_RANDGRID);
+            STARSH_PARTICLES_RANDGRID, 0);
     if(info != 0)
     {
         printf("Error in generation RANDGRID\n");
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
     //starsh_particles_write_to_file_pointer_ascii(data, stdout);
     starsh_particles_free(data);
     info = starsh_particles_generate(&data, 12, 2,
-            STARSH_PARTICLES_UNIFORM);
+            STARSH_PARTICLES_UNIFORM, 0);
     if(info != 0)
     {
         printf("Error in generation UNIFORM\n");
@@ -116,7 +116,7 @@ int main(int argc, char **argv)
     //starsh_particles_write_to_file_pointer_ascii(data, stdout);
     starsh_particles_free(data);
     info = starsh_particles_generate(&data, 12, 2,
-            STARSH_PARTICLES_QUASIUNIFORM1);
+            STARSH_PARTICLES_QUASIUNIFORM1, 0);
     if(info != 0)
     {
         printf("Error in generation QUASIUNIFORM1\n");
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
     //starsh_particles_write_to_file_pointer_ascii(data, stdout);
     starsh_particles_free(data);
     info = starsh_particles_generate(&data, 12, 2,
-            STARSH_PARTICLES_QUASIUNIFORM2);
+            STARSH_PARTICLES_QUASIUNIFORM2, 0);
     if(info != 0)
     {
         printf("Error in generation QUASUNIFORM2\n");

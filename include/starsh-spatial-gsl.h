@@ -84,12 +84,13 @@ void starsh_ssdata_block_matern2_kernel_4d_simd(int nrows, int ncols,
 void starsh_ssdata_block_matern2_kernel_nd_simd(int nrows, int ncols,
         STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
         void *result, int ld);
-
 void starsh_ssdata_block_parsimonious_kernel_2d_simd(int nrows, int ncols,
         STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
         void *result, int ld);
-
 void starsh_ssdata_block_parsimonious2_kernel_2d_simd(int nrows, int ncols,
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
+void starsh_ssdata_block_space_time_kernel_2d_simd(int nrows, int ncols,
         STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
         void *result, int ld);
 //! @}

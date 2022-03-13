@@ -114,7 +114,7 @@ int starsh_eddata_generate(STARSH_eddata **data, STARSH_int count, int ndim,
     }
     int info;
     STARSH_particles *particles;
-    info = starsh_particles_generate(&particles, count, ndim, place);
+    info = starsh_particles_generate(&particles, count, ndim, place, 0);
     if(info != STARSH_SUCCESS)
     {
         fprintf(stderr, "INFO=%d\n", info);

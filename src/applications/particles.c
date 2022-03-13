@@ -110,7 +110,7 @@ void starsh_particles_free(STARSH_particles *data)
 }
 
 int starsh_particles_generate(STARSH_particles **data, STARSH_int count,
-        int ndim, enum STARSH_PARTICLES_PLACEMENT ptype)
+        int ndim, enum STARSH_PARTICLES_PLACEMENT ptype, int time_slots)
 //! Generate @ref STARSH_particles with required distribution.
 /*! @param[out] data: Address of pointer to @ref STARSH_particles object.
  * @param[in] count: Amount of particles to generate.
@@ -167,6 +167,9 @@ int starsh_particles_generate(STARSH_particles **data, STARSH_int count,
             break;
         case STARSH_PARTICLES_OBSOLETE4:
             info = starsh_particles_generate_obsolete4(data, count, ndim);
+            break;
+        case STARSH_PARTICLES_OBSOLETE5:
+            info = starsh_particles_generate_obsolete5(data, count, ndim, time_slots);
             break;
         default:
             return STARSH_WRONG_PARAMETER;
@@ -785,6 +788,108 @@ int starsh_particles_generate_obsolete4(STARSH_particles **data,
 
         return STARSH_SUCCESS;
 }
+
+
+
+int starsh_particles_generate_obsolete5(STARSH_particles **data,
+        STARSH_int count, int ndim, int time_slots)
+//! Generate a uniform grid of particles with random shift of each particle.
+/*! Similar to starsh_particles_generate_quasiuniform1(), but works only for
+ * 1D, 2D and 3D. Parameter `count` must be square of integer if `ndim`=2 and
+ * cube if integer if `ndim`=3.
+ *
+ * @param[out] data: Address of pointer to @ref STARSH_particles object.
+ * @param[in] count: Amount of particles to generate.
+ * @param[in] ndim: Dimensionality of space.
+ * @return Error code @ref STARSH_ERRNO.
+ * @sa starsh_particles_generate(), starsh_particles_generate_quasiuniform1().
+ * @ingroup app-particles
+ * */
+{
+    STARSH_int i, j, k, l;
+    double *point;
+    //For time space kernel
+    count = count / time_slots;
+    size_t nelem = count*(ndim+1)*time_slots;
+    STARSH_MALLOC(point, nelem);
+    
+    if(ndim == 1)
+    {
+        for(i = 0; i < count; i++)
+            point[i] = (i+0.1+0.8*rand()/(1.0+RAND_MAX))/count;
+    }
+    else if(ndim == 2)
+    {
+        STARSH_int sqrtn = floor(sqrt(count)+0.1);
+        if(sqrtn*sqrtn != count)
+        {
+            STARSH_ERROR("parameter `count` must be square of some integer");
+            return STARSH_WRONG_PARAMETER;
+        }
+
+        double *x = point, *y = x+count*time_slots, *z = y+count*time_slots;
+
+        for(i = 0; i < sqrtn; i++)
+            for(j = 0; j < sqrtn; j++)
+		{
+            STARSH_int ind = i*sqrtn + j;
+            x[ind] = (i+0.1+0.8*rand()/(1.0+RAND_MAX))/sqrtn;
+            y[ind] = (j+0.1+0.8*rand()/(1.0+RAND_MAX))/sqrtn;
+            z[ind] = 0.0;
+        }
+
+        for(k = 1; k <= time_slots; k++)
+        {
+            for(l = 0; l < count; l++)
+            {
+                x[l+k*count] = x[l];
+                y[l+k*count] = y[l];
+            }
+        }
+      
+		/* 2D sort */ 
+        zsort(count*time_slots, point); 
+
+		/* set Z values */	
+		for(i = 0; i < count*time_slots;)
+			for(j = 1; j <= time_slots; j++)
+				z[i++]=(double)j;
+
+		//for(i=0;i<count*time_slots;i++)
+			//printf("\n approx:%f, %f, %f\n", x[i], y[i], z[i]);
+    }
+    else
+    { //space time not yet supported with 3d
+        STARSH_int cbrtn = floor(cbrt(count)+0.1);
+        if(cbrtn*cbrtn*cbrtn != count)
+        {
+            STARSH_ERROR("parameter `count` must be cube of some integer");
+            return STARSH_WRONG_PARAMETER;
+        }
+        double *x = point, *y = x+count, *z = y+count;
+        for(i = 0; i < cbrtn; i++)
+            for(j = 0; j < cbrtn; j++)
+                for(k = 0; k < cbrtn; k++)
+                {
+                    STARSH_int ind = (i*cbrtn + j)*cbrtn + k;
+                    x[ind] = (i+0.1+0.8*rand()/(1.0+RAND_MAX))/cbrtn;
+                    y[ind] = (j+0.1+0.8*rand()/(1.0+RAND_MAX))/cbrtn;
+                    z[ind] = (k+0.1+0.8*rand()/(1.0+RAND_MAX))/cbrtn;
+                }
+        zsort3(count, point);
+    }
+    STARSH_MALLOC(*data, 1);
+    (*data)->point = point;
+    (*data)->count = count * time_slots;
+    (*data)->ndim = ndim;
+    return STARSH_SUCCESS;
+}
+
+
+
+
+
+
 
 int starsh_particles_read_from_file(STARSH_particles **data, const char *fname,
 		const enum STARSH_FILE_TYPE ftype)

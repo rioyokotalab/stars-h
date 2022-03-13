@@ -53,8 +53,16 @@ typedef struct starsh_ssdata
     //!< Order of Mat&eacute;rn kernel for the second variable (in the parsimonious bivariate case).
     double sigma2;
     //!< Variance for the second variable (in the parsimonious bivariate case).
-   double corr;
+    double corr;
     //!< spatial range parameter (define the correlation between the two variables in the parsimonious bivariate case).
+    double beta_time;
+    //!< Characteristical length of covariance in time.
+    double nu_time;
+    //!< Order of Mat&eacute;rn kernel in time. 
+    double nonsep_param;
+    //!< space-time nonseparability parameter
+    double aux_param;
+    //!< an auxilliary parameter in time
 } STARSH_ssdata;
 
 enum STARSH_SPATIAL_KERNEL
@@ -136,6 +144,14 @@ enum STARSH_SPATIAL_KERNEL
     /*!< Bivariate Modified parsimonious2 Mat&eacute;rnkernel with SIMD.
      * @sa starsh_ssdata_block_parsimonious_kernel_nd_simd().
      * */
+    STARSH_SPATIAL_SPACE_TIME_GCD = 23,
+    /*!< Space-time Mat&eacute;rn kernel with GCD.
+     * @sa starsh_ssdata_block_parsimonious_kernel_nd_simd_gcd().
+     * */    
+    STARSH_SPATIAL_SPACE_TIME_SIMD = 24,
+    /*!< Space-time Mat&eacute;rnkernel with SIMD.
+     * @sa starsh_ssdata_block_parsimonious_kernel_nd_simd().
+     * */    
 };
 
 enum STARSH_SPATIAL_PARAM
@@ -168,109 +184,122 @@ enum STARSH_SPATIAL_PARAM
     //!< Order of Mat&eacute;rn kernel for the second variable (in the parsimonious bivariate case).
     STARSH_SPATIAL_CORR = 9,
     //!< spatial range parameter (define the correlation between the two variables in the parsimonious bivariate case).
+    STARSH_SPATIAL_BETA_TIME = 10,
+    //!< Range parameter in time for space time Mat&eacute;rn kernel (`beta_time`, double).
+    STARSH_SPATIAL_NU_TIME = 11,
+    //!< Smoothing parameter in time for space time Mat&eacute;rn kernel (`nu_time`, double).
+    STARSH_SPATIAL_NONSEP_PARAM = 12,
+    //!< Nonseperable parameter in time for space time Mat&eacute;rn kernel (`nonsep_param`, double).
+    STARSH_SPATIAL_AUX_PARAM = 13,
+    //!< Aux parameter in time for space time Mat&eacute;rn kernel (`aux_param`, double).
+    STARSH_SPATIAL_SPACE_TIME_SLOTS = 14,
+    //!< Number of time slots  parameter (`time_slots`, int).
 };
 
 int starsh_ssdata_new(STARSH_ssdata **data, STARSH_int count, int ndim);
 int starsh_ssdata_init(STARSH_ssdata **data, STARSH_int count, int ndim,
-	double *point, double beta, double nu, double noise, double sigma);
+        double *point, double beta, double nu, double noise, double sigma);
 int starsh_ssdata_init_parsimonious(STARSH_ssdata **data, STARSH_int count, int ndim,
-    double *point, double sigma1, double sigma2, double beta, double nu1,
-    double nu2, double corr, double noise);
+        double *point, double sigma1, double sigma2, double beta, double nu1,
+        double nu2, double corr, double noise);
 int starsh_ssdata_generate(STARSH_ssdata **data, STARSH_int count, int ndim,
-	double beta, double nu, double noise,
-	enum STARSH_PARTICLES_PLACEMENT place, double sigma);
+        double beta, double nu, double noise,
+        enum STARSH_PARTICLES_PLACEMENT place, double sigma);
 int starsh_ssdata_generate_va(STARSH_ssdata **data, STARSH_int count,
-	va_list args);
+        va_list args);
 int starsh_ssdata_generate_el(STARSH_ssdata **data, STARSH_int count, ...);
 int starsh_ssdata_get_kernel(STARSH_kernel **kernel, STARSH_ssdata *data,
-	enum STARSH_SPATIAL_KERNEL type);
+        enum STARSH_SPATIAL_KERNEL type);
 void starsh_ssdata_free(STARSH_ssdata *data);
 
 // KERNELS
 
 void starsh_ssdata_block_exp_kernel_1d(int nrows, int ncols, STARSH_int *irow,
-	STARSH_int *icol, void *row_data, void *col_data, void *result,
-	int ld);
+        STARSH_int *icol, void *row_data, void *col_data, void *result,
+        int ld);
 void starsh_ssdata_block_exp_kernel_2d(int nrows, int ncols, STARSH_int *irow,
-	STARSH_int *icol, void *row_data, void *col_data, void *result,
-	int ld);
+        STARSH_int *icol, void *row_data, void *col_data, void *result,
+        int ld);
 void starsh_ssdata_block_exp_kernel_3d(int nrows, int ncols, STARSH_int *irow,
-	STARSH_int *icol, void *row_data, void *col_data, void *result,
-	int ld);
+        STARSH_int *icol, void *row_data, void *col_data, void *result,
+        int ld);
 void starsh_ssdata_block_exp_kernel_4d(int nrows, int ncols, STARSH_int *irow,
-	STARSH_int *icol, void *row_data, void *col_data, void *result,
-	int ld);
+        STARSH_int *icol, void *row_data, void *col_data, void *result,
+        int ld);
 void starsh_ssdata_block_exp_kernel_nd(int nrows, int ncols, STARSH_int *irow,
-	STARSH_int *icol, void *row_data, void *col_data, void *result,
-	int ld);
+        STARSH_int *icol, void *row_data, void *col_data, void *result,
+        int ld);
 
 void starsh_ssdata_block_exp_kernel_1d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_exp_kernel_2d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_exp_kernel_3d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_exp_kernel_4d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_exp_kernel_nd_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 
 void starsh_ssdata_block_sqrexp_kernel_1d(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_2d(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_3d(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_4d(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_nd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 
 void starsh_ssdata_block_sqrexp_kernel_1d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_2d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_3d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_4d_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_nd_simd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 
 
 void starsh_ssdata_block_exp_kernel_2d_simd_gcd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_sqrexp_kernel_2d_simd_gcd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_matern_kernel_2d_simd_gcd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_matern2_kernel_2d_simd_gcd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_parsimonious_kernel_2d_simd_gcd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 void starsh_ssdata_block_parsimonious2_kernel_2d_simd_gcd(int nrows, int ncols,
-	STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
-	void *result, int ld);
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
+void starsh_ssdata_block_space_time_kernel_2d_simd_gcd(int nrows, int ncols,
+        STARSH_int *irow, STARSH_int *icol, void *row_data, void *col_data,
+        void *result, int ld);
 // Add definitions for other kernels after Doxygen groups have already been
 // defined
 #include "starsh-spatial-gsl.h"
