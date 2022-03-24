@@ -28,6 +28,22 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 
 int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     STARSH_int ndim) {
+    STARSH_MALLOC(*data, 1);
+    (*data)->count = N * ndim;
+    (*data)->ndim = ndim;
+
+    double *point;
+    STARSH_MALLOC(point, (*data)->count);
+    srand(1);
+
+    for (int i = 0; i < N; ++i) {
+        point[i] = rand() / N;
+        point[i + N] = rand() / N;
+        point[i + 2 * N] = rand() / N;
+    }
+
+    (*data)->point = point;
+    starsh_particles_zsort_inplace(*data);
     return 1;
 }
 
