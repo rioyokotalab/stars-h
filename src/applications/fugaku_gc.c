@@ -19,6 +19,7 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
  * */
 {
     STARSH_laplace *data = row_data;
+    int ndim = data->ndim;
     STARSH_int N = data->N;
     STARSH_int nblocks = data->nblocks;
     STARSH_int block_size = data->block_size;
@@ -32,8 +33,8 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 
     double rij = 0;
     for (int k = 0; k < ndim; ++k) {
-        double coord_x = row_data
-        rij += pow()
+        double* coord_x = (double*)row_data;
+//        rij += pow()
     }
 }
 
