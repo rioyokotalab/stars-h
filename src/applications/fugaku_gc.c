@@ -19,7 +19,7 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
  * */
 {
     STARSH_laplace *data = row_data;
-    int ndim = data->ndim;
+
     STARSH_int N = data->N;
     STARSH_int nblocks = data->nblocks;
     STARSH_int block_size = data->block_size;
@@ -28,6 +28,7 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 
     STARSH_laplace *data1 = row_data;
     STARSH_laplace *data2 = col_data;
+    int ndim = data->ndim;
 
     double *x1[ndim], *x2[ndim];
 
@@ -95,6 +96,7 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
     (*data)->nblocks = nblocks;
     (*data)->block_size = block_size;
     (*data)->PV = PV;
+    (*data)->ndim = ndim;
 
     return STARSH_SUCCESS;
 }
