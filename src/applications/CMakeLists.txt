@@ -25,6 +25,7 @@ set(STARSH_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/minimal.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/particles.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/cauchy.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fugaku_gc.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mesh_deformation/cube.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mesh_deformation/mesh_rbf.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mesh_deformation/virus.c"
