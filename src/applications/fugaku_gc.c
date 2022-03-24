@@ -24,6 +24,17 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
     STARSH_int block_size = data->block_size;
     double PV = data->PV;
     double *buffer = result;
+
+    STARSH_laplace *data1 = row_data;
+    STARSH_laplace *data2 = col_data;
+
+    double *x1[ndim], *x2[ndim];
+
+    double rij = 0;
+    for (int k = 0; k < ndim; ++k) {
+        double coord_x = row_data
+        rij += pow()
+    }
 }
 
 int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
