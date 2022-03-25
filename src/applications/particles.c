@@ -532,7 +532,7 @@ int starsh_particles_generate_obsolete1(STARSH_particles **data,
     }
     else
     {
-        STARSH_int cbrtn = floor(cbrt(count)+0.1); 
+        STARSH_int cbrtn = floor(cbrt(count)+0.1);
         if(cbrtn*cbrtn*cbrtn != count)
         {
             STARSH_ERROR("parameter `count` must be cube of some integer");
@@ -605,7 +605,7 @@ int starsh_particles_generate_obsolete2(STARSH_particles **data,
     }
     else
     {
-        STARSH_int cbrtn = floor(cbrt(count)+0.1); 
+        STARSH_int cbrtn = floor(cbrt(count)+0.1);
         if(cbrtn*cbrtn*cbrtn != count)
         {
             STARSH_ERROR("parameter `count` must be cube of some integer");
@@ -651,7 +651,7 @@ int starsh_particles_generate_obsolete3(STARSH_particles **data,
  * @sa starsh_particles_generate(), starsh_particles_generate_quasiuniform1().
  * @ingroup app-particles
  * */
-{      
+{
 	STARSH_int i, j, k;
 	double *point;
 	size_t nelem = count*ndim;
@@ -812,7 +812,7 @@ int starsh_particles_generate_obsolete5(STARSH_particles **data,
     count = count / time_slots;
     size_t nelem = count*(ndim+1)*time_slots;
     STARSH_MALLOC(point, nelem);
-    
+
     if(ndim == 1)
     {
         for(i = 0; i < count; i++)
@@ -846,11 +846,11 @@ int starsh_particles_generate_obsolete5(STARSH_particles **data,
                 y[l+k*count] = y[l];
             }
         }
-      
-		/* 2D sort */ 
-        zsort(count*time_slots, point); 
 
-		/* set Z values */	
+		/* 2D sort */
+        zsort(count*time_slots, point);
+
+		/* set Z values */
 		for(i = 0; i < count*time_slots;)
 			for(j = 1; j <= time_slots; j++)
 				z[i++]=(double)j;

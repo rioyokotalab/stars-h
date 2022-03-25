@@ -31,12 +31,25 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
     int ndim = data->ndim;
 
     double *x1[ndim], *x2[ndim];
+    int row_start = *irow;
+    int col_start = *icol;
 
     double rij = 0;
-    for (int k = 0; k < ndim; ++k) {
-        double* coord_x = (double*)row_data;
-//        rij += pow()
+
+    for (int i = 0; i < nrows; ++i) {
+        for (int j = 0; j < ncols; ++j) {
+            for (int k = 0; k < ndim; ++k) {
+                double *coord_row = &((double*)row_data)[k * N];
+                double *coord_col = &((double*)col_data)[k * N];
+                rij += pow(coord_row[row_start] - coord_col[col_start], 2);
+            }
+
+            double out = 1 / (sqrt(rij) + PV);
+
+            buffer[i + j * ld] = out;
+        }
     }
+
 }
 
 int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
@@ -50,14 +63,14 @@ int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     srand(1);
 
     for (int i = 0; i < N; ++i) {
-        point[i] = rand() / N;
-        point[i + N] = rand() / N;
-        point[i + 2 * N] = rand() / N;
+        point[i] = (double)rand() / N;
+        point[i + N] = (double)rand() / N;
+        point[i + 2 * N] = (double)rand() / N;
     }
 
     (*data)->point = point;
     starsh_particles_zsort_inplace(*data);
-    return 1;
+    return STARSH_SUCCESS;
 }
 
 int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
