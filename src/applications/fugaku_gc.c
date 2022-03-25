@@ -55,12 +55,14 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     STARSH_int ndim) {
     STARSH_MALLOC(*data, 1);
-    (*data)->count = N * ndim;
+    (*data)->count = N;
     (*data)->ndim = ndim;
 
     double *point;
-    STARSH_MALLOC(point, (*data)->count);
+    STARSH_MALLOC(point, (*data)->count * ndim);
     srand(1);
+
+    printf("HELLLLOO\n");
 
     for (int i = 0; i < N; ++i) {
         point[i] = (double)rand() / N;
