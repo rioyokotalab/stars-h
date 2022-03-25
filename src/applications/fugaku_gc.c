@@ -47,7 +47,7 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
             }
             double out = 1 / (sqrt(rij) + PV);
 
-            printf("PV: %f points: %f %f %f irow: %d out: %d.\n", PV, x1[0][irow[i]], x1[1][irow[i]], x1[2][irow[i]], irow[i], out);
+            //printf("PV: %f points: %f %f %f irow: %d out: %d.\n", PV, x1[0][irow[i]], x1[1][irow[i]], x1[2][irow[i]], irow[i], out);
             buffer[i + j * ld] = out;
         }
     }
