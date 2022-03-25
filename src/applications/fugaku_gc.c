@@ -18,34 +18,36 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
  * @ingroup app-laplace
  * */
 {
-    STARSH_laplace *data = row_data;
-
-    STARSH_int N = data->N;
-    STARSH_int nblocks = data->nblocks;
-    STARSH_int block_size = data->block_size;
-    double PV = data->PV;
-    double *buffer = result;
-
     STARSH_laplace *data1 = row_data;
     STARSH_laplace *data2 = col_data;
-    int ndim = data->ndim;
+
+    STARSH_int N = data1->N;
+    STARSH_int nblocks = data1->nblocks;
+    STARSH_int block_size = data1->block_size;
+    double PV = data1->PV;
+    double *buffer = result;
+    int ndim = data1->ndim;
 
     double *x1[ndim], *x2[ndim];
-    int row_start = *irow;
-    int col_start = *icol;
 
-    double rij = 0;
+    x1[0] = data1->particles.point;
+    x2[0] = data2->particles.point;
+    for (int k = 1; k < ndim; ++k) {
+        x1[k] = x1[0] + k * data1->particles.count;
+        x2[k] = x2[0] + k * data2->particles.count;
+    }
+
+
 
     for (int i = 0; i < nrows; ++i) {
         for (int j = 0; j < ncols; ++j) {
+            double rij = 0;
             for (int k = 0; k < ndim; ++k) {
-                double *coord_row = &((double*)row_data)[k * N];
-                double *coord_col = &((double*)col_data)[k * N];
-                rij += pow(coord_row[row_start] - coord_col[col_start], 2);
+                rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
             }
-
             double out = 1 / (sqrt(rij) + PV);
 
+            printf("PV: %f points: %f %f %f irow: %d out: %d.\n", PV, x1[0][irow[i]], x1[1][irow[i]], x1[2][irow[i]], irow[i], out);
             buffer[i + j * ld] = out;
         }
     }
@@ -62,17 +64,19 @@ int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     STARSH_MALLOC(point, (*data)->count * ndim);
     srand(1);
 
-    printf("HELLLLOO\n");
-
     for (int i = 0; i < N; ++i) {
-        point[i] = (double)rand() / N;
-        point[i + N] = (double)rand() / N;
-        point[i + 2 * N] = (double)rand() / N;
+        point[i] = (double)i / N;
+        point[i + N] = (double)i / N;
+        point[i + 2 * N] = (double)i / N;
     }
 
     (*data)->point = point;
     starsh_particles_zsort_inplace(*data);
     return STARSH_SUCCESS;
+}
+
+int starsh_laplace_grid_free(STARSH_laplace **data) {
+    starsh_particles_free(&(*data)->particles);
 }
 
 int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
