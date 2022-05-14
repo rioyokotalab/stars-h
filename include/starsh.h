@@ -71,7 +71,7 @@ typedef void STARSH_kernel(int nrows, int ncols, STARSH_int *irow,
 
 //! Typedef for @ref ::array
 //! @ingroup array
-typedef struct array Array;
+typedef struct _array Array;
 
 //! Typedef for [problem](@ref ::starsh_problem)
 //! @ingroup problem
@@ -117,7 +117,7 @@ int starsh_application(void **data, STARSH_kernel **kernel, STARSH_int count,
 //! @{
 // This will automatically include all entities between @{ and @} into group.
 
-struct array
+struct _array
 //! N-dimensional array.
 /*! Simplifies debugging.
  * */
@@ -687,4 +687,3 @@ int starsh_itersolvers__dcg_omp(STARSH_blrm *matrix, int nrhs, double *B,
 
 
 #endif // __STARSH_H__
-

@@ -19,6 +19,13 @@ typedef struct starsh_laplace
     //!< Value to add to each diagonal element (for positive definiteness).
 } STARSH_laplace;
 
+void starsh_print_nice_things();
+
+double starsh_laplace_point_kernel(STARSH_int *irow,
+                                   STARSH_int *icol,
+                                   STARSH_laplace *row_data,
+                                   STARSH_laplace *col_data);
+
 int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     STARSH_int ndim);
 
@@ -28,7 +35,9 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 
 int starsh_laplace_grid_free(STARSH_laplace **data);
 
-int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
-        STARSH_int ndim,
-        STARSH_int block_size, STARSH_int nblocks, double PV);
+int starsh_laplace_grid_generate(STARSH_laplace **data,
+                                 STARSH_int N,
+                                 STARSH_int ndim,
+                                 STARSH_int block_size,
+                                 STARSH_int nblocks, double PV);
 #endif

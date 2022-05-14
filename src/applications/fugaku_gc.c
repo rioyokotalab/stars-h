@@ -3,6 +3,42 @@
 #include "starsh-spatial.h"
 #include "starsh-fugaku_gc.h"
 
+void starsh_print_nice_things() {
+  printf("nice things.\n");
+}
+
+double starsh_laplace_point_kernel(STARSH_int *irow,
+                                   STARSH_int *icol,
+                                   STARSH_laplace *row_data,
+                                   STARSH_laplace *col_data)
+{
+  STARSH_laplace *data1 = row_data;
+  STARSH_laplace *data2 = col_data;
+
+  STARSH_int N = data1->N;
+  STARSH_int nblocks = data1->nblocks;
+  STARSH_int block_size = data1->block_size;
+  double PV = data1->PV;
+  int ndim = data1->ndim;
+
+  double *x1[ndim], *x2[ndim];
+
+  x1[0] = data1->particles.point;
+  x2[0] = data2->particles.point;
+  for (int k = 1; k < ndim; ++k) {
+    x1[k] = x1[0] + k * data1->particles.count;
+    x2[k] = x2[0] + k * data2->particles.count;
+  }
+
+  double rij = 0;
+  for (int k = 0; k < ndim; ++k) {
+    rij += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
+  }
+  double out = 1 / (sqrt(rij) + PV);
+
+  return out;
+}
+
 void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
         STARSH_int *icol, void *row_data, void *col_data, void *result,
         int ld)
