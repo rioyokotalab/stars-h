@@ -39,5 +39,7 @@ int starsh_laplace_grid_generate(STARSH_laplace **data,
                                  STARSH_int N,
                                  STARSH_int ndim,
                                  STARSH_int block_size,
-                                 STARSH_int nblocks, double PV);
+                                 STARSH_int nblocks,
+                                 double PV,
+                                 enum STARSH_PARTICLES_PLACEMENT place);
 #endif

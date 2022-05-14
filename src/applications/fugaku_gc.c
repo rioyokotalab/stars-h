@@ -116,8 +116,11 @@ int starsh_laplace_grid_free(STARSH_laplace **data) {
 }
 
 int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
-        STARSH_int ndim,
-        STARSH_int block_size, STARSH_int nblocks, double PV) {
+                                 STARSH_int ndim,
+                                 STARSH_int block_size,
+                                 STARSH_int nblocks,
+                                 double PV,
+                                 enum STARSH_PARTICLES_PLACEMENT place) {
 
     if (data == NULL) {
         STARSH_ERROR("Invalid value of data.");
@@ -138,7 +141,8 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
 
     int info;
     STARSH_particles *particles;
-    info = starsh_normal_grid_generate(&particles, N, ndim);
+    info = starsh_particles_generate(&particles, N, ndim, place, 0);
+    /* info = starsh_normal_grid_generate(&particles, N, ndim); */
     if(info != STARSH_SUCCESS)
     {
         fprintf(stderr, "INFO=%d\n", info);
