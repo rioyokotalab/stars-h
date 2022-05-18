@@ -16,17 +16,17 @@ int starsh_file_grid_read_kmeans(const char* file_name,
                                  STARSH_int N,
                                  STARSH_int ndim);
 
-int starsh_file_block_kernel(int nrows, int cols,
+int starsh_yukawa_block_kernel(int nrows, int cols,
                              STARSH_int *irow,
                              STARSH_int *icol,
                              void* row_data,
                              void* col_data,
                              void *result, int ld);
 
-double starsh_file_point_kernel(STARSH_int *irow,
-                                STARSH_int *icol,
-                                void *row_data,
-                                void *col_data);
+double starsh_yukawa_point_kernel(STARSH_int *irow,
+                                  STARSH_int *icol,
+                                  void *row_data,
+                                  void *col_data);
 
 typedef struct starsh_laplace
 {

@@ -81,19 +81,19 @@ double starsh_laplace_point_kernel(STARSH_int *irow,
 
   STARSH_int N = data1->N;
   double PV = data1->PV;
-  int ndim = data1->ndim;
+  STARSH_int ndim = data1->ndim;
 
   double *x1[ndim], *x2[ndim];
 
   x1[0] = data1->particles.point;
   x2[0] = data2->particles.point;
-  for (int k = 1; k < ndim; ++k) {
+  for (STARSH_int k = 1; k < ndim; ++k) {
     x1[k] = x1[0] + k * data1->particles.count;
     x2[k] = x2[0] + k * data2->particles.count;
   }
 
   double rij = 0;
-  for (int k = 0; k < ndim; ++k) {
+  for (STARSH_int k = 0; k < ndim; ++k) {
     rij += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
   }
   double out = 1 / (sqrt(rij) + PV);
@@ -128,15 +128,15 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 
     x1[0] = data1->particles.point;
     x2[0] = data2->particles.point;
-    for (int k = 1; k < ndim; ++k) {
+    for (STARSH_int k = 1; k < ndim; ++k) {
         x1[k] = x1[0] + k * data1->particles.count;
         x2[k] = x2[0] + k * data2->particles.count;
     }
 
-    for (int i = 0; i < nrows; ++i) {
-      for (int j = 0; j < ncols; ++j) {
+    for (STARSH_int i = 0; i < nrows; ++i) {
+      for (STARSH_int j = 0; j < ncols; ++j) {
         double rij = 0;
-        for (int k = 0; k < ndim; ++k) {
+        for (STARSH_int k = 0; k < ndim; ++k) {
           rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
         }
         double out = 1 / (sqrt(rij) + PV);
@@ -156,7 +156,7 @@ int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     STARSH_MALLOC(point, (*data)->count * ndim);
     srand(1);
 
-    for (int i = 0; i < N; ++i) {
+    for (STARSH_int i = 0; i < N; ++i) {
         point[i] = (double)i / N;
         point[i + N] = (double)i / N;
         point[i + 2 * N] = (double)i / N;
