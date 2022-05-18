@@ -11,10 +11,10 @@ typedef struct starsh_molecules
   STARSH_int ndim;
 } STARSH_molecules;
 
-int starsh_file_grid_read(const char* file_name,
-                               STARSH_molecules **data,
-                               STARSH_int N,
-                               STARSH_int ndim);
+int starsh_file_grid_read_kmeans(const char* file_name,
+                                 STARSH_particles **particles,
+                                 STARSH_int N,
+                                 STARSH_int ndim);
 
 int starsh_file_block_kernel(int nrows, int cols,
                              STARSH_int *irow,
@@ -56,8 +56,6 @@ int starsh_laplace_grid_free(STARSH_laplace **data);
 int starsh_laplace_grid_generate(STARSH_laplace **data,
                                  STARSH_int N,
                                  STARSH_int ndim,
-                                 STARSH_int block_size,
-                                 STARSH_int nblocks,
                                  double PV,
                                  enum STARSH_PARTICLES_PLACEMENT place);
 #endif

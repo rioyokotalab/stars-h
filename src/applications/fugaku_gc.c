@@ -5,19 +5,20 @@
 #include "starsh-spatial.h"
 #include "starsh-fugaku_gc.h"
 
-int starsh_file_grid_read(const char* file_name,
-                          STARSH_molecules **data,
-                          STARSH_int N,
-                          STARSH_int ndim) {
+int starsh_file_grid_read_kmeans(const char* file_name,
+                                 STARSH_particles **particles,
+                                 STARSH_int N,
+                                 STARSH_int ndim) {
   FILE *fp;
   int info;
-  STARSH_particles* particles;
   size_t nelem = N * ndim;
 
   STARSH_MALLOC(particles, 1);
-  particles->point = (double*)malloc(nelem * sizeof(double));
-  particles->ndim = ndim;
-  particles->count = N;
+  (*particles)->point = (double*)malloc(nelem * sizeof(double));
+  (*particles)->ndim = ndim;
+  (*particles)->count = N;
+
+  STARSH_int *kmeans_index = (STARSH_int*)malloc(N * sizeof(STARSH_int));
 
   fp = fopen(file_name, "r");
   if (fp == NULL) {
@@ -27,11 +28,15 @@ int starsh_file_grid_read(const char* file_name,
 
   for (STARSH_int i = 0; i < N; ++i) {
     double x, y, z;
-    fscanf(fp, "%lf %lf %lf", &x, &y, &z);
+    fscanf(fp, "%lf %lf %lf %lld", &x, &y, &z, &kmeans_index[i]);
+    if (feof(fp) && i < N) {
+      fprintf(stderr, "reached end of file after %ld.\n", i);
+      exit(2);
+    }
 
-    particles->point[i] = x;
-    particles->point[i + N] = y;
-    particles->point[i + 2 * N] = z;
+    (*particles)->point[i] = x;
+    (*particles)->point[i + N] = y;
+    (*particles)->point[i + 2 * N] = z;
   }
 
   fclose(fp);
@@ -39,14 +44,14 @@ int starsh_file_grid_read(const char* file_name,
   return STARSH_SUCCESS;
 }
 
-int starsh_file_block_kernel(int nrows, int cols, STARSH_int *irow,
+int starsh_yukawa_block_kernel(int nrows, int cols, STARSH_int *irow,
                              STARSH_int *icol, void* row_data, void* col_data,
                              void *result, int ld) {
 
   return STARSH_SUCCESS;
 }
 
-double starsh_file_point_kernel(STARSH_int *irow,
+double starsh_yukawa_point_kernel(STARSH_int *irow,
                                 STARSH_int *icol,
                                 void *row_data,
                                 void *col_data) {
@@ -128,8 +133,6 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
                 rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
             }
             double out = 1 / (sqrt(rij) + PV);
-
-            //printf("PV: %f points: %f %f %f irow: %d out: %d.\n", PV, x1[0][irow[i]], x1[1][irow[i]], x1[2][irow[i]], irow[i], out);
             buffer[i + j * ld] = out;
         }
     }
@@ -163,8 +166,6 @@ int starsh_laplace_grid_free(STARSH_laplace **data) {
 
 int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
                                  STARSH_int ndim,
-                                 STARSH_int block_size,
-                                 STARSH_int nblocks,
                                  double PV,
                                  enum STARSH_PARTICLES_PLACEMENT place) {
 
@@ -174,10 +175,6 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
     }
     if (N <= 0) {
         STARSH_ERROR("Invalid value of N.\n");
-        return STARSH_WRONG_PARAMETER;
-    }
-    if (block_size <= 0) {
-        STARSH_ERROR("Invalid value of block_size.\n");
         return STARSH_WRONG_PARAMETER;
     }
     if (PV > 1) {
