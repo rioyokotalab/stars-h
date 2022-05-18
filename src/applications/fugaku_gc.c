@@ -3,21 +3,51 @@
 #include "starsh-spatial.h"
 #include "starsh-fugaku_gc.h"
 
+int starsh_file_grid_read(const char* file_name,
+                          STARSH_molecules **data,
+                          STARSH_int N,
+                          STARSH_int ndim) {
+  int info;
+  STARSH_particles* particles;
+  size_t nelem = N * ndim;
+
+  STARSH_MALLOC(particles, 1);
+  particles->point = (double*)malloc(nelem * sizeof(double));
+  particles->ndim = ndim;
+  particles->count = N;
+
+  return STARSH_SUCCESS;
+}
+
+int starsh_file_block_kernel(int nrows, int cols, STARSH_int *irow,
+                             STARSH_int *icol, void* row_data, void* col_data,
+                             void *result, int ld) {
+
+  return STARSH_SUCCESS;
+}
+
+double starsh_file_point_kernel(STARSH_int *irow,
+                                STARSH_int *icol,
+                                void *row_data,
+                                void *col_data) {
+  double out = 0;
+
+  return out;
+}
+
 void starsh_print_nice_things() {
   printf("nice things.\n");
 }
 
 double starsh_laplace_point_kernel(STARSH_int *irow,
                                    STARSH_int *icol,
-                                   STARSH_laplace *row_data,
-                                   STARSH_laplace *col_data)
+                                   void *row_data,
+                                   void *col_data)
 {
   STARSH_laplace *data1 = row_data;
   STARSH_laplace *data2 = col_data;
 
   STARSH_int N = data1->N;
-  STARSH_int nblocks = data1->nblocks;
-  STARSH_int block_size = data1->block_size;
   double PV = data1->PV;
   int ndim = data1->ndim;
 
@@ -58,8 +88,6 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
     STARSH_laplace *data2 = col_data;
 
     STARSH_int N = data1->N;
-    STARSH_int nblocks = data1->nblocks;
-    STARSH_int block_size = data1->block_size;
     double PV = data1->PV;
     double *buffer = result;
     int ndim = data1->ndim;
@@ -72,8 +100,6 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
         x1[k] = x1[0] + k * data1->particles.count;
         x2[k] = x2[0] + k * data2->particles.count;
     }
-
-
 
     for (int i = 0; i < nrows; ++i) {
         for (int j = 0; j < ncols; ++j) {
