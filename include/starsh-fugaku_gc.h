@@ -12,7 +12,7 @@ typedef struct starsh_molecules
 } STARSH_molecules;
 
 int starsh_file_grid_read_kmeans(const char* file_name,
-                                 STARSH_particles **particles,
+                                 STARSH_particles *particles,
                                  STARSH_int N,
                                  STARSH_int ndim);
 

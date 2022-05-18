@@ -6,7 +6,7 @@
 #include "starsh-fugaku_gc.h"
 
 int starsh_file_grid_read_kmeans(const char* file_name,
-                                 STARSH_particles **particles,
+                                 STARSH_particles *particles,
                                  STARSH_int N,
                                  STARSH_int ndim) {
   FILE *fp;
@@ -14,9 +14,9 @@ int starsh_file_grid_read_kmeans(const char* file_name,
   size_t nelem = N * ndim;
 
   STARSH_MALLOC(particles, 1);
-  (*particles)->point = (double*)malloc(nelem * sizeof(double));
-  (*particles)->ndim = ndim;
-  (*particles)->count = N;
+  particles->point = (double*)malloc(nelem * sizeof(double));
+  particles->ndim = ndim;
+  particles->count = N;
 
   STARSH_int *kmeans_index = (STARSH_int*)malloc(N * sizeof(STARSH_int));
 
@@ -34,9 +34,9 @@ int starsh_file_grid_read_kmeans(const char* file_name,
       exit(2);
     }
 
-    (*particles)->point[i] = x;
-    (*particles)->point[i + N] = y;
-    (*particles)->point[i + 2 * N] = z;
+    particles->point[i] = x;
+    particles->point[i + N] = y;
+    particles->point[i + 2 * N] = z;
   }
 
   fclose(fp);
