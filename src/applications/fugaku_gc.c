@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "common.h"
 #include "starsh.h"
 #include "starsh-spatial.h"
@@ -7,6 +9,7 @@ int starsh_file_grid_read(const char* file_name,
                           STARSH_molecules **data,
                           STARSH_int N,
                           STARSH_int ndim) {
+  FILE *fp;
   int info;
   STARSH_particles* particles;
   size_t nelem = N * ndim;
@@ -15,6 +18,23 @@ int starsh_file_grid_read(const char* file_name,
   particles->point = (double*)malloc(nelem * sizeof(double));
   particles->ndim = ndim;
   particles->count = N;
+
+  fp = fopen(file_name, "r");
+  if (fp == NULL) {
+    fprintf(stderr, "could not read file.\n");
+    abort();
+  }
+
+  for (STARSH_int i = 0; i < N; ++i) {
+    double x, y, z;
+    fscanf(fp, "%lf %lf %lf", &x, &y, &z);
+
+    particles->point[i] = x;
+    particles->point[i + N] = y;
+    particles->point[i + 2 * N] = z;
+  }
+
+  fclose(fp);
 
   return STARSH_SUCCESS;
 }
@@ -119,7 +139,7 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
 int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     STARSH_int ndim) {
     STARSH_MALLOC(*data, 1);
-    (*data)->count = N;
+    (*data)->count= N;
     (*data)->ndim = ndim;
 
     double *point;
@@ -178,8 +198,6 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
     (*data)->particles = *particles;
     free(particles);
     (*data)->N = N;
-    (*data)->nblocks = nblocks;
-    (*data)->block_size = block_size;
     (*data)->PV = PV;
     (*data)->ndim = ndim;
 

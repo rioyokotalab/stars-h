@@ -31,13 +31,7 @@ double starsh_file_point_kernel(STARSH_int *irow,
 typedef struct starsh_laplace
 {
     STARSH_particles particles;
-
     STARSH_int N;
-    //!< Number of rows/columns of synthetic matrix.
-    STARSH_int nblocks;
-    //!< Number of tiles in one dimension.
-    STARSH_int block_size;
-    //!< Size of each tile.
     STARSH_int ndim;
     double PV;
     //!< Value to add to each diagonal element (for positive definiteness).
