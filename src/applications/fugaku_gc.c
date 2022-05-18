@@ -13,7 +13,6 @@ int starsh_file_grid_read_kmeans(const char* file_name,
   int info;
   size_t nelem = N * ndim;
 
-  STARSH_MALLOC(particles, 1);
   particles->point = (double*)malloc(nelem * sizeof(double));
   particles->ndim = ndim;
   particles->count = N;
