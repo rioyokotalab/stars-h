@@ -26,12 +26,19 @@ int starsh_file_grid_read_kmeans(const char* file_name,
     abort();
   }
 
+  STARSH_int one_pcent = N / 100;
+  printf("starsh-> reading file.\n");
+
   for (STARSH_int i = 0; i < N; ++i) {
     double x, y, z;
     fscanf(fp, "%lf %lf %lf %lld", &x, &y, &z, &kmeans_index[i]);
     if (feof(fp) && i < N) {
       fprintf(stderr, "reached end of file after %ld.\n", i);
       exit(2);
+    }
+
+    if (i % one_pcent == 0) {
+      printf("file read %lf \% done.\n", ((double)i / N) * 100);
     }
 
     particles->point[i] = x;
@@ -115,7 +122,7 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
     STARSH_int N = data1->N;
     double PV = data1->PV;
     double *buffer = result;
-    int ndim = data1->ndim;
+    STARSH_int ndim = data1->ndim;
 
     double *x1[ndim], *x2[ndim];
 
@@ -127,14 +134,14 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
     }
 
     for (int i = 0; i < nrows; ++i) {
-        for (int j = 0; j < ncols; ++j) {
-            double rij = 0;
-            for (int k = 0; k < ndim; ++k) {
-                rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
-            }
-            double out = 1 / (sqrt(rij) + PV);
-            buffer[i + j * ld] = out;
+      for (int j = 0; j < ncols; ++j) {
+        double rij = 0;
+        for (int k = 0; k < ndim; ++k) {
+          rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
         }
+        double out = 1 / (sqrt(rij) + PV);
+        buffer[i + j * ld] = out;
+      }
     }
 
 }
@@ -184,8 +191,8 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
 
     int info;
     STARSH_particles *particles;
-    info = starsh_particles_generate(&particles, N, ndim, place, 0);
-    /* info = starsh_normal_grid_generate(&particles, N, ndim); */
+    /* info = starsh_particles_generate(&particles, N, ndim, place, 0); */
+    info = starsh_normal_grid_generate(&particles, N, ndim);
     if(info != STARSH_SUCCESS)
     {
         fprintf(stderr, "INFO=%d\n", info);
