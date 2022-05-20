@@ -50,9 +50,37 @@ int starsh_file_grid_read_kmeans(const char* file_name,
   return STARSH_SUCCESS;
 }
 
-int starsh_yukawa_block_kernel(int nrows, int cols, STARSH_int *irow,
+int starsh_yukawa_block_kernel(int nrows, int ncols, STARSH_int *irow,
                              STARSH_int *icol, void* row_data, void* col_data,
                              void *result, int ld) {
+  STARSH_laplace *data1 = row_data;
+  STARSH_laplace *data2 = col_data;
+
+  STARSH_int N = data1->N;
+  double *buffer = result;
+  STARSH_int ndim = data1->ndim;
+
+  double *x1[ndim], *x2[ndim];
+
+  x1[0] = data1->particles.point;
+  x2[0] = data2->particles.point;
+  for (STARSH_int k = 1; k < ndim; ++k) {
+    x1[k] = x1[0] + k * data1->particles.count;
+    x2[k] = x2[0] + k * data2->particles.count;
+  }
+
+
+  for (STARSH_int i = 0; i < nrows; ++i) {
+    for (STARSH_int j = 0; j < ncols; ++j) {
+      double rij = 0;
+      for (STARSH_int k = 0; k < ndim; ++k) {
+        rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
+      }
+      rij = sqrt(rij);
+      double out = exp(-rij) / (1e-8 + rij);
+      buffer[i + j * ld] = out;
+    }
+  }
 
   return STARSH_SUCCESS;
 }
@@ -61,9 +89,29 @@ double starsh_yukawa_point_kernel(STARSH_int *irow,
                                 STARSH_int *icol,
                                 void *row_data,
                                 void *col_data) {
-  double out = 0;
+  STARSH_molecules *data1 = row_data;
+  STARSH_molecules *data2 = col_data;
 
-  return out;
+  STARSH_int N = data1->N;
+  STARSH_int ndim = data1->ndim;
+
+  double *x1[ndim], *x2[ndim];
+
+  x1[0] = data1->particles.point;
+  x2[0] = data2->particles.point;
+  for (STARSH_int k = 1; k < ndim; ++k) {
+    x1[k] = x1[0] + k * data1->particles.count;
+    x2[k] = x2[0] + k * data2->particles.count;
+  }
+
+  double r = 0;
+  for (STARSH_int k = 0; k < ndim; ++k) {
+    r += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
+  }
+  r = sqrt(r);
+
+  /* v = exp(-r) / (1.e-8 + r) */
+  return exp(-r) / (1e-8 + r);
 }
 
 void starsh_print_nice_things() {

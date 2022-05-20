@@ -75,6 +75,10 @@ void starsh_dense_dlrrsdd(int nrows, int ncols, double *D, int ldD, double *U,
         STARSH_WARNING("LAPACKE_dgesdd_work info=%d", info);
     // Get rank, corresponding to given error tolerance
     *rank = starsh_dense_dsvfr(mn2, svd_S, tol);
+    fprintf(stderr, "starsh SVD -> rank: %d\n", *rank);
+    if (*rank == 0) {
+      *rank = 1;
+    }
     if(info == 0 && *rank <= maxrank)
     // If far-field block is low-rank
     {
