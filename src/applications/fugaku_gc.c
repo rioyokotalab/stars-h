@@ -26,7 +26,7 @@ int starsh_file_grid_read_kmeans(const char* file_name,
   }
 
   STARSH_int one_pcent = N / 100;
-  printf("starsh-> reading file.\n");
+  /* printf("starsh-> reading file.\n"); */
 
   for (STARSH_int i = 0; i < N; ++i) {
     double x, y, z;
@@ -36,9 +36,9 @@ int starsh_file_grid_read_kmeans(const char* file_name,
       exit(2);
     }
 
-    if (i % one_pcent == 0) {
-      printf("file read %lf %% done.\n", ((double)i / N) * 100);
-    }
+    /* if (i % one_pcent == 0) { */
+    /*   printf("file read %lf %% done.\n", ((double)i / N) * 100); */
+    /* } */
 
     particles->point[i] = x;
     particles->point[i + N] = y;
