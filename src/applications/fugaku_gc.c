@@ -200,6 +200,7 @@ int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     (*data)->ndim = ndim;
 
     double *point;
+    assert(ndim == 3);
     STARSH_MALLOC(point, (*data)->count * ndim);
     srand(1);
 
@@ -238,8 +239,8 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
 
     int info;
     STARSH_particles *particles;
-    /* info = starsh_particles_generate(&particles, N, ndim, place, 0); */
-    info = starsh_normal_grid_generate(&particles, N, ndim);
+    info = starsh_particles_generate(&particles, N, ndim, place, 0);
+    /* info = starsh_normal_grid_generate(&particles, N, ndim); */
     if(info != STARSH_SUCCESS)
     {
         fprintf(stderr, "INFO=%d\n", info);
