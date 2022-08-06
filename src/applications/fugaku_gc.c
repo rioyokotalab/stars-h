@@ -200,7 +200,7 @@ int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
     (*data)->ndim = ndim;
 
     double *point;
-    assert(ndim == 3);
+    /*assert(ndim == 3);*/
     STARSH_MALLOC(point, (*data)->count * ndim);
     srand(1);
 
