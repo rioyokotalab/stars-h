@@ -66,9 +66,9 @@ int starsh_laplace_grid_generate(STARSH_laplace **data,
                                  double PV,
                                  enum STARSH_PARTICLES_PLACEMENT place);
 
-int starsh_matern_grid_generate(STARSH_matern **data, STARSH_int, N,
+int starsh_matern_grid_generate(STARSH_matern **data, STARSH_int N,
                                 STARSH_int ndim, double sigma, double nu,
-                                double smoothness);
+                                double smoothness, enum STARSH_PARTICLES_PLACEMENT place);
 
 void
 starsh_matern_block_kernel(int nrows, int ncols, STARSH_int *irow,
