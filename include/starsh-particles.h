@@ -132,4 +132,3 @@ int starsh_particles_write_to_file_pointer_binary(const STARSH_particles *data,
 int starsh_particles_zsort_inplace(STARSH_particles *data);
 
 #endif // __STARSH_PARTICLES_H__
-
