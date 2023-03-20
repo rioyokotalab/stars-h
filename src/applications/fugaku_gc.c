@@ -334,7 +334,7 @@ double starsh_matern_point_kernel(STARSH_int *irow,
 
   double rij = 0;
   for (STARSH_int k = 0; k < ndim; ++k) {
-    rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
+    rij += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
   }
   double dist = sqrt(rij);
 
