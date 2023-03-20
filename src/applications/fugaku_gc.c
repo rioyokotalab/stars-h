@@ -309,6 +309,53 @@ starsh_matern_block_kernel(int nrows, int ncols, STARSH_int *irow,
   }
 }
 
+double starsh_matern_point_kernel(STARSH_int *irow,
+                                  STARSH_int *icol,
+                                  void *row_data,
+                                  void *col_data) {
+  STARSH_matern *data1 = row_data;
+  STARSH_matern *data2 = col_data;
+
+  STARSH_int N = data1->N;
+  double sigma = data1->sigma;
+  double nu = data1->nu;
+  double smoothness = data1->smoothness;
+  STARSH_int ndim = data1->ndim;
+  double out;
+  double *x1[ndim], *x2[ndim];
+
+  x1[0] = data1->particles.point;
+  x2[0] = data2->particles.point;
+  for (STARSH_int k = 1; k < ndim; ++k) {
+    x1[k] = x1[0] + k * data1->particles.count;
+    x2[k] = x2[0] + k * data2->particles.count;
+  }
+
+  double rij = 0;
+  for (STARSH_int k = 0; k < ndim; ++k) {
+    rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
+  }
+  double dist = sqrt(rij);
+
+  double expr = 0.0;
+  double con = 0.0;
+  double sigma_square = sigma*sigma;
+
+  con = pow(2, (smoothness - 1)) * gsl_sf_gamma(smoothness);
+  con = 1.0 / con;
+  con = sigma_square * con;
+
+  if (dist != 0) {
+    expr = dist / nu;
+    out =  con * pow(expr, smoothness) * gsl_sf_bessel_Knu(smoothness, expr);
+  }
+  else {
+    out = sigma_square;
+  }
+
+  return out;
+}
+
 int
 starsh_matern_grid_generate(STARSH_matern **data, STARSH_int, N,
                             STARSH_int ndim, double sigma, double nu,

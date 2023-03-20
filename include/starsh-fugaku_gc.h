@@ -70,6 +70,11 @@ int starsh_matern_grid_generate(STARSH_matern **data, STARSH_int, N,
                                 STARSH_int ndim, double sigma, double nu,
                                 double smoothness);
 
+double starsh_matern_point_kernel(STARSH_int *irow,
+                                  STARSH_int *icol,
+                                  void *row_data,
+                                  void *col_data);
+
 void
 starsh_matern_block_kernel(int nrows, int ncols, STARSH_int *irow,
                            STARSH_int *icol, void *row_data, void *col_data, void *result,
