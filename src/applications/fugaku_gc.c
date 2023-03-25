@@ -53,69 +53,27 @@ int starsh_file_grid_read_kmeans(const char* file_name,
   return STARSH_SUCCESS;
 }
 
-int starsh_yukawa_block_kernel(int nrows, int ncols, STARSH_int *irow,
-                             STARSH_int *icol, void* row_data, void* col_data,
-                             void *result, int ld) {
-  STARSH_laplace *data1 = row_data;
-  STARSH_laplace *data2 = col_data;
+int starsh_generate_2d_grid(STARSH_particles**data, STARSH_int count) {
+  double *point;
+  STARSH_MALLOC(point, ndim*count);
 
-  STARSH_int N = data1->N;
-  double *buffer = result;
-  STARSH_int ndim = data1->ndim;
-
-  double *x1[ndim], *x2[ndim];
-
-  x1[0] = data1->particles.point;
-  x2[0] = data2->particles.point;
-  for (STARSH_int k = 1; k < ndim; ++k) {
-    x1[k] = x1[0] + k * data1->particles.count;
-    x2[k] = x2[0] + k * data2->particles.count;
-  }
-
-
-  for (STARSH_int i = 0; i < nrows; ++i) {
-    for (STARSH_int j = 0; j < ncols; ++j) {
-      double rij = 0;
-      for (STARSH_int k = 0; k < ndim; ++k) {
-        rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
-      }
-      rij = sqrt(rij);
-      double out = exp(-rij) / (1e-8 + rij);
-      buffer[i + j * ld] = out;
+  int side = sqrt(count);
+  double space = 1.0 / side;
+  for (int i = 0; i < side; ++i) {
+    for (int j = 0; j < side; ++j) {
+      point[(i + j * side)] = i * space; /* x co-ordinate */
+      point[count + (i + j * side)] = j * space; /* y co-ordinate */
     }
   }
+
+  STARSH_MALLOC(*data, 1);
+  (*data)->count = count;
+  (*data)->ndim = 2;
+  (*data)->point = point;
 
   return STARSH_SUCCESS;
 }
 
-double starsh_yukawa_point_kernel(STARSH_int *irow,
-                                STARSH_int *icol,
-                                void *row_data,
-                                void *col_data) {
-  STARSH_molecules *data1 = row_data;
-  STARSH_molecules *data2 = col_data;
-
-  STARSH_int N = data1->N;
-  STARSH_int ndim = data1->ndim;
-
-  double *x1[ndim], *x2[ndim];
-
-  x1[0] = data1->particles.point;
-  x2[0] = data2->particles.point;
-  for (STARSH_int k = 1; k < ndim; ++k) {
-    x1[k] = x1[0] + k * data1->particles.count;
-    x2[k] = x2[0] + k * data2->particles.count;
-  }
-
-  double r = 0;
-  for (STARSH_int k = 0; k < ndim; ++k) {
-    r += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
-  }
-  r = sqrt(r);
-
-  /* v = exp(-r) / (1.e-8 + r) */
-  return exp(-r) / (1e-8 + r);
-}
 
 void starsh_print_nice_things() {
   printf("nice things.\n");
@@ -195,28 +153,6 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
     }
 }
 
-int starsh_normal_grid_generate(STARSH_particles** data, STARSH_int N,
-    STARSH_int ndim) {
-    STARSH_MALLOC(*data, 1);
-    (*data)->count= N;
-    (*data)->ndim = ndim;
-
-    double *point;
-    /*assert(ndim == 3);*/
-    STARSH_MALLOC(point, (*data)->count * ndim);
-    srand(1);
-
-    for (STARSH_int i = 0; i < N; ++i) {
-        point[i] = (double)i / N;
-        point[i + N] = (double)i / N;
-        point[i + 2 * N] = (double)i / N;
-    }
-
-    (*data)->point = point;
-    starsh_particles_zsort_inplace(*data);
-    return STARSH_SUCCESS;
-}
-
 int starsh_laplace_grid_free(STARSH_laplace **data) {
     starsh_particles_free(&(*data)->particles);
 }
@@ -241,8 +177,7 @@ int starsh_laplace_grid_generate(STARSH_laplace **data, STARSH_int N,
 
     int info;
     STARSH_particles *particles;
-    info = starsh_particles_generate(&particles, N, ndim, place, 0);
-    /* info = starsh_normal_grid_generate(&particles, N, ndim); */
+    info = starsh_generate_2d_grid(&particles, N);
     if(info != STARSH_SUCCESS)
     {
         fprintf(stderr, "INFO=%d\n", info);
@@ -370,9 +305,8 @@ starsh_matern_grid_generate(STARSH_matern **data, STARSH_int N,
     return STARSH_WRONG_PARAMETER;
   }
 
-  int info;
   STARSH_particles *particles;
-  info = starsh_particles_generate(&particles, N, ndim, place, 0);
+  int info = starsh_generate_2d_grid(&particles, N);
   if(info != STARSH_SUCCESS)
     {
       fprintf(stderr, "INFO=%d\n", info);
@@ -386,6 +320,106 @@ starsh_matern_grid_generate(STARSH_matern **data, STARSH_int N,
   (*data)->sigma = sigma;
   (*data)->nu = nu;
   (*data)->smoothness = smoothness;
+
+  return STARSH_SUCCESS;
+}
+
+int starsh_yukawa_block_kernel(int nrows, int ncols, STARSH_int *irow,
+                             STARSH_int *icol, void* row_data, void* col_data,
+                             void *result, int ld) {
+  STARSH_yukawa *data1 = row_data;
+  STARSH_yukawa *data2 = col_data;
+
+  double alpha = data1->alpha;
+  double singularity = data1->singularity;
+
+  STARSH_int N = data1->N;
+  double *buffer = result;
+  STARSH_int ndim = data1->ndim;
+
+  double *x1[ndim], *x2[ndim];
+
+  x1[0] = data1->particles.point;
+  x2[0] = data2->particles.point;
+  for (STARSH_int k = 1; k < ndim; ++k) {
+    x1[k] = x1[0] + k * data1->particles.count;
+    x2[k] = x2[0] + k * data2->particles.count;
+  }
+
+
+  for (STARSH_int i = 0; i < nrows; ++i) {
+    for (STARSH_int j = 0; j < ncols; ++j) {
+      double rij = 0;
+      for (STARSH_int k = 0; k < ndim; ++k) {
+        rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
+      }
+      rij = sqrt(rij);
+      double out = exp(-rij * alpha) / (singularity + rij);
+      buffer[i + j * ld] = out;
+    }
+  }
+
+  return STARSH_SUCCESS;
+}
+
+double starsh_yukawa_point_kernel(STARSH_int *irow,
+                                STARSH_int *icol,
+                                void *row_data,
+                                void *col_data) {
+  STARSH_yukawa *data1 = row_data;
+  STARSH_yukawa *data2 = col_data;
+
+  double alpha = data1->alpha;
+  double singularity = data1->singularity;
+
+  STARSH_int N = data1->N;
+  STARSH_int ndim = data1->ndim;
+
+  double *x1[ndim], *x2[ndim];
+
+  x1[0] = data1->particles.point;
+  x2[0] = data2->particles.point;
+  for (STARSH_int k = 1; k < ndim; ++k) {
+    x1[k] = x1[0] + k * data1->particles.count;
+    x2[k] = x2[0] + k * data2->particles.count;
+  }
+
+  double r = 0;
+  for (STARSH_int k = 0; k < ndim; ++k) {
+    r += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
+  }
+  r = sqrt(r);                  /* distance */
+
+  return exp(-r * alpha) / (singularity + r);
+}
+
+int
+starsh_yukawa_grid_generate(STARSH_yukawa **data, STARSH_int N,
+                            STARSH_int ndim, double alpha, double singularity,
+                            enum STARSH_PARTICLES_PLACEMENT place) {
+  if (data == NULL) {
+    STARSH_ERROR("Invalid value of data.");
+    return STARSH_WRONG_PARAMETER;
+  }
+  if (N <= 0) {
+    STARSH_ERROR("Invalid value of N.\n");
+    return STARSH_WRONG_PARAMETER;
+  }
+
+  STARSH_particles *particles;
+  int info = starsh_generate_2d_grid(&particles, N);
+  if(info != STARSH_SUCCESS)
+    {
+      fprintf(stderr, "INFO=%d\n", info);
+      return info;
+    }
+  STARSH_MALLOC(*data, 1);
+  (*data)->particles = *particles;
+  free(particles);
+  (*data)->N = N;
+  (*data)->ndim = ndim;
+  (*data)->alpha = alpha;
+  (*data)->singularity = singularity;
 
   return STARSH_SUCCESS;
 }
