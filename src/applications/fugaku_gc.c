@@ -55,7 +55,7 @@ int starsh_file_grid_read_kmeans(const char* file_name,
 
 int starsh_generate_2d_grid(STARSH_particles**data, STARSH_int count) {
   double *point;
-  STARSH_MALLOC(point, ndim*count);
+  STARSH_MALLOC(point, 2*count);
 
   int side = sqrt(count);
   double space = 1.0 / side;
