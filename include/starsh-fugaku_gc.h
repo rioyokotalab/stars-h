@@ -70,9 +70,13 @@ double starsh_laplace_point_kernel(STARSH_int *irow,
                                    void *row_data,
                                    void *col_data);
 
-void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
-        STARSH_int *icol, void *row_data, void *col_data, void *result,
-        int ld);
+void starsh_laplace_block_kernel(int nrows, int ncols,
+                                 STARSH_int *irow,
+                                 STARSH_int *icol,
+                                 void *row_data,
+                                 void *col_data,
+                                 void *result,
+                                 int ld);
 
 int starsh_laplace_grid_generate(STARSH_laplace **data,
                                  STARSH_int N,
@@ -94,8 +98,12 @@ starsh_matern_point_kernel(STARSH_int *irow,
                            void *col_data);
 
 void
-starsh_matern_block_kernel(int nrows, int ncols, STARSH_int *irow,
-                           STARSH_int *icol, void *row_data, void *col_data, void *result,
+starsh_matern_block_kernel(int nrows, int ncols,
+                           STARSH_int *irow,
+                           STARSH_int *icol,
+                           void *row_data,
+                           void *col_data,
+                           void *result,
                            int ld);
 
 
