@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 
 #include "common.h"
 #include "starsh.h"
@@ -104,7 +105,14 @@ double starsh_laplace_point_kernel(STARSH_int *irow,
   for (STARSH_int k = 0; k < ndim; ++k) {
     rij += pow(x1[k][irow[0]] - x2[k][icol[0]], 2);
   }
-  double out = 1 / (sqrt(rij) + PV);
+  double out;
+  if (ndim == 2) {
+    out = -log(sqrt(rij) + PV);
+  }
+  else {
+    out = 1 / (sqrt(rij) + PV);
+  }
+
 
   return out;
 }
@@ -147,7 +155,15 @@ void starsh_laplace_block_kernel(int nrows, int ncols, STARSH_int *irow,
         for (STARSH_int k = 0; k < ndim; ++k) {
           rij += pow(x1[k][irow[i]] - x2[k][icol[j]], 2);
         }
-        double out = 1 / (sqrt(rij) + PV);
+
+        double out;
+        if (ndim == 2) {
+          out = -log(sqrt(rij) + PV);
+        }
+        else {
+          out = 1 / (sqrt(rij) + PV);
+        }
+
         buffer[i + j * ld] = out;
       }
     }
